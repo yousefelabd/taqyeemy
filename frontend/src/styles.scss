@@ -1,0 +1,61 @@
+// Angular Material M3 Theme for Taqyeemy
+// IMPORTANT: @use must be the very first statement
+@use '@angular/material' as mat;
+
+html {
+  height: 100%;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$violet-palette,
+        tertiary: mat.$cyan-palette,
+      ),
+      typography: 'Cairo',
+      density: 0,
+    )
+  );
+}
+
+body {
+  color-scheme: light;
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font-family: 'Cairo', 'Roboto', sans-serif;
+  margin: 0;
+  height: 100%;
+  direction: rtl;
+}
+
+// Protect mat-icon font — must stay 'Material Icons' for ligature rendering.
+// The typography: 'Cairo' in mat.theme() would otherwise override this.
+mat-icon,
+.mat-icon {
+  font-family: 'Material Icons' !important;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+}
+
+* { box-sizing: border-box; }
+
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.level-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 14px;
+
+  &.level-a1 { background: #e8f5e9; color: #2e7d32; }
+  &.level-a2 { background: #f1f8e9; color: #558b2f; }
+  &.level-b1 { background: #fff8e1; color: #f57f17; }
+  &.level-b2 { background: #fff3e0; color: #e65100; }
+  &.level-c1 { background: #fce4ec; color: #c62828; }
+  &.level-c2 { background: #ede7f6; color: #4527a0; }
+}

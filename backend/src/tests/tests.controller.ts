@@ -1,0 +1,24 @@
+﻿import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
+import { TestsService } from './tests.service';
+import { SubmitTestDto } from './dto/submit-test.dto';
+import { AuthGuard } from '../common/guards/auth.guard';
+import type { CefrLevel } from '../common/interfaces/test-result.interface';
+
+@Controller('tests')
+@UseGuards(AuthGuard)
+export class TestsController {
+  constructor(private readonly testsService: TestsService) {}
+
+  @Get('questions')
+  async getQuestions(
+    @Query('type') testType: string = 'placement',
+    @Query('level') level?: string,
+  ) {
+    return this.testsService.getQuestions(testType, level as CefrLevel);
+  }
+
+  @Post('submit')
+  async submit(@Request() req: any, @Body() submitTestDto: SubmitTestDto) {
+    return this.testsService.submitAndEvaluate(req.user.id, req.token, submitTestDto as any);
+  }
+}
