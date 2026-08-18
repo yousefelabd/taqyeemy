@@ -79,38 +79,84 @@ export class AuthService {
     }
   }
 
-  async register(email: string, password: string, fullName: string): Promise<void> {
+  async register(email: string, password: string, fullName: string): Promise<{ requiresOtp: boolean; email: string }> {
     this._authState.update((s) => ({ ...s, isLoading: true }));
     try {
       const res = await firstValueFrom(
-        this.http.post<{ message: string; token: string | null; user: any }>(`${API_URL}/register`, {
+        this.http.post<{ message: string; requiresOtp: boolean; email: string }>(`${API_URL}/register`, {
           fullName,
           email,
           password,
         }),
       );
 
-      if (res.token) {
-        const user: User = {
-          id: res.user.id,
-          email: res.user.email,
-          fullName: res.user.fullName,
-          createdAt: new Date(),
-        };
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+      return { requiresOtp: true, email: res.email || email };
+    } catch (err) {
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+      throw err;
+    }
+  }
 
-        localStorage.setItem(TOKEN_KEY, res.token);
-        localStorage.setItem(USER_KEY, JSON.stringify(user));
+  async verifyOtp(email: string, token: string, type: 'signup' | 'recovery'): Promise<void> {
+    this._authState.update((s) => ({ ...s, isLoading: true }));
+    try {
+      const res = await firstValueFrom(
+        this.http.post<{ message: string; token: string; user: any }>(`${API_URL}/verify-otp`, {
+          email,
+          token,
+          type,
+        }),
+      );
 
-        this._authState.set({
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-        });
+      const user: User = {
+        id: res.user.id,
+        email: res.user.email,
+        fullName: res.user.fullName,
+        createdAt: new Date(),
+      };
 
-        this.router.navigate(['/']);
-      } else {
-        this.router.navigate(['/auth/login']);
-      }
+      localStorage.setItem(TOKEN_KEY, res.token);
+      localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+      this._authState.set({
+        user,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+
+      this.router.navigate(['/']);
+    } catch (err) {
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+      throw err;
+    }
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    this._authState.update((s) => ({ ...s, isLoading: true }));
+    try {
+      await firstValueFrom(
+        this.http.post<{ message: string; email: string }>(`${API_URL}/forgot-password`, { email }),
+      );
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+    } catch (err) {
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+      throw err;
+    }
+  }
+
+  async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
+    this._authState.update((s) => ({ ...s, isLoading: true }));
+    try {
+      await firstValueFrom(
+        this.http.post<{ message: string }>(`${API_URL}/reset-password`, {
+          email,
+          token,
+          newPassword,
+        }),
+      );
+      this._authState.update((s) => ({ ...s, isLoading: false }));
+      this.router.navigate(['/auth/login']);
     } catch (err) {
       this._authState.update((s) => ({ ...s, isLoading: false }));
       throw err;

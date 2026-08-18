@@ -46,6 +46,10 @@ import { AuthService } from '../../../core/services/auth.service';
               }
             </mat-form-field>
 
+            <div class="forgot-password-row">
+              <a routerLink="/auth/forgot-password" class="forgot-link">نسيت كلمة المرور؟</a>
+            </div>
+
             @if (errorMessage()) {
               <div class="error-banner">
                 <mat-icon>error</mat-icon>
@@ -86,6 +90,9 @@ import { AuthService } from '../../../core/services/auth.service';
     .full-width { width: 100%; }
     .submit-btn { width: 100%; height: 48px; font-size: 16px; margin-top: 8px; }
     .error-banner { display: flex; align-items: center; gap: 8px; background: #ffebee; color: #c62828; padding: 12px 16px; border-radius: 8px; font-size: 14px; }
+    .forgot-password-row { text-align: left; margin-top: -8px; }
+    .forgot-link { color: var(--mat-sys-primary); font-size: 13px; font-weight: 500; text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
     .auth-switch { text-align: center; color: var(--mat-sys-on-surface-variant); }
     .auth-switch a { color: var(--mat-sys-primary); font-weight: 600; cursor: pointer; }
     mat-card-header { padding-bottom: 0; }
