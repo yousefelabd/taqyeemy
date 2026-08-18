@@ -2,8 +2,9 @@ import { Injectable, signal, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { TestResult, ResultSummary } from '../models/result.model';
+import { environment } from '../../../environments/environment';
 
-const API_URL = 'http://127.0.0.1:3000/results';
+const API_URL = `${environment.apiUrl}/results`;
 
 @Injectable({ providedIn: 'root' })
 export class ResultsService {

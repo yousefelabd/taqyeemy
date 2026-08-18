@@ -3,8 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { User, AuthState } from '../models/user.model';
+import { environment } from '../../../environments/environment';
 
-const API_URL = 'http://127.0.0.1:3000/auth';
+const API_URL = `${environment.apiUrl}/auth`;
 const TOKEN_KEY = 'taqyeemy_token';
 const USER_KEY = 'taqyeemy_user';
 

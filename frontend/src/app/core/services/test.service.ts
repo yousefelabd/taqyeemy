@@ -3,8 +3,9 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { Question, TestSession, CefrLevel, TestType } from '../models/test.model';
 import { TestResult } from '../models/result.model';
+import { environment } from '../../../environments/environment';
 
-const API_URL = 'http://127.0.0.1:3000/tests';
+const API_URL = `${environment.apiUrl}/tests`;
 
 @Injectable({ providedIn: 'root' })
 export class TestService {
