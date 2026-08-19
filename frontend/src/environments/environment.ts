@@ -1,4 +1,4 @@
 ﻿export const environment = {
   production: true,
-  apiUrl: 'https://taqyeemy-pxh2.vercel.app',
+ apiUrl: 'https://taqyeemy-backend.vercel.app'
 };
