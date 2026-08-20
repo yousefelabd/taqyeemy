@@ -145,7 +145,7 @@ import { AuthService } from '../../../core/services/auth.service';
     .otp-header { width: 100%; padding: 16px 0; }
     .otp-icon { font-size: 56px; width: 56px; height: 56px; margin-bottom: 12px; }
     .otp-form { display: flex; flex-direction: column; gap: 20px; margin-top: 16px; }
-    .otp-inputs-row { display: flex; justify-content: center; gap: 8px; dir: ltr; }
+    .otp-inputs-row { display: flex; flex-direction: row-reverse; justify-content: center; gap: 8px; }
     .otp-digit { width: 44px; height: 52px; font-size: 22px; font-weight: 700; text-align: center; border: 2px solid #ccc; border-radius: 8px; outline: none; transition: border-color 0.2s; }
     .otp-digit:focus { border-color: var(--mat-sys-primary); box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.2); }
     .submit-btn { width: 100%; height: 48px; font-size: 16px; }
