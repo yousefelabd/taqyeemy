@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal, ChangeDetectorRef } from '@angular/core';
 import { Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -79,13 +79,20 @@ import { CefrLevel } from '../../core/models/test.model';
       </div>
 
       <div class="action-area">
+        @if (errorMessage()) {
+          <div class="error-banner">
+            <mat-icon>error</mat-icon>
+            {{ errorMessage() }}
+          </div>
+        }
+
         <button
           mat-raised-button
           color="primary"
           class="start-btn"
-          [disabled]="!canStart() || isLoading"
+          [disabled]="!canStart() || isLoading()"
           (click)="startTest()">
-          @if (isLoading) {
+          @if (isLoading()) {
             <mat-spinner diameter="20" />
           } @else {
             <mat-icon>play_arrow</mat-icon>
@@ -122,6 +129,7 @@ import { CefrLevel } from '../../core/models/test.model';
     .full-width { width: 100%; }
     .action-area { text-align: center; }
     .start-btn { height: 52px; font-size: 18px; padding: 0 40px; }
+    .error-banner { display: inline-flex; align-items: center; gap: 8px; background: #ffebee; color: #c62828; padding: 12px 24px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
     .disclaimer { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--mat-sys-on-surface-variant); font-size: 13px; margin-top: 16px; }
     .disclaimer-icon { font-size: 16px; width: 16px; height: 16px; }
   `]
@@ -129,10 +137,12 @@ import { CefrLevel } from '../../core/models/test.model';
 export class TestSelectionComponent {
   private testService = inject(TestService);
   private router = inject(Router);
+  private cdr = inject(ChangeDetectorRef);
 
   selectedType: 'placement' | 'specific' | null = null;
   selectedLevel: CefrLevel | null = null;
-  isLoading = false;
+  isLoading = signal(false);
+  errorMessage = signal('');
 
   cefrLevels = [
     { code: 'A1' as CefrLevel, arabic: 'مبتدئ' },
@@ -146,6 +156,7 @@ export class TestSelectionComponent {
   selectType(type: 'placement' | 'specific'): void {
     this.selectedType = type;
     if (type === 'placement') this.selectedLevel = null;
+    this.errorMessage.set('');
   }
 
   canStart(): boolean {
@@ -156,12 +167,19 @@ export class TestSelectionComponent {
 
   async startTest(): Promise<void> {
     if (!this.canStart()) return;
-    this.isLoading = true;
+    this.isLoading.set(true);
+    this.errorMessage.set('');
+    this.cdr.markForCheck();
+
     try {
       await this.testService.startSession(this.selectedType!, this.selectedLevel ?? undefined);
       this.router.navigate(['/test']);
+    } catch (err: any) {
+      const msg = err?.error?.message || 'حدث خطأ أثناء تحميل الأسئلة، يرجى المحاولة مرة أخرى';
+      this.errorMessage.set(Array.isArray(msg) ? msg[0] : msg);
     } finally {
-      this.isLoading = false;
+      this.isLoading.set(false);
+      this.cdr.markForCheck();
     }
   }
 }
