@@ -1,4 +1,5 @@
-﻿import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { parseBuffer } from 'music-metadata';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ResultsService } from '../results/results.service';
 import { AiService } from '../common/ai/ai.service';
@@ -130,5 +131,35 @@ export class TestsService {
     };
 
     return this.resultsService.saveResult(evaluatedResult, token);
+  }
+
+  async analyzeSpeakingAnswer(audio: Express.Multer.File, questionText: string) {
+    if (!audio || !audio.buffer) {
+      throw new BadRequestException('الملف الصوتي مطلوب');
+    }
+
+    // 1. التحقق من المدة
+    let durationSeconds = 0;
+    try {
+      const metadata = await parseBuffer(audio.buffer, audio.mimetype);
+      durationSeconds = metadata.format.duration ?? 0;
+    } catch {
+      durationSeconds = 0;
+    }
+
+    if (durationSeconds > 120) {
+      throw new BadRequestException(
+        `مدة التسجيل ${Math.round(durationSeconds)} ثانية، يجب أن تكون أقل من دقيقتين`,
+      );
+    }
+
+    // 2. تحليل الصوت بـ Gemini
+    try {
+      return await this.aiService.analyzeSpeakingAudio(audio.buffer, audio.mimetype, questionText);
+    } catch {
+      throw new InternalServerErrorException(
+        'حدث خطأ أثناء تحليل التسجيل الصوتي، حاول مرة أخرى',
+      );
+    }
   }
 }

@@ -1,4 +1,4 @@
-﻿import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { CefrLevel, TestType } from '../interfaces/test-result.interface';
@@ -112,6 +112,57 @@ Return the result strictly as a valid JSON object matching the schema.
     } catch (err) {
       this.logger.error('Gemini AI evaluation exception, using fallback evaluator:', err);
       return this.fallbackEvaluator(questions, answers, testType, targetLevel);
+    }
+  }
+
+  async analyzeSpeakingAudio(audioBuffer: Buffer, mimeType: string, questionText: string) {
+    const base64Audio = audioBuffer.toString('base64');
+
+    const prompt = `
+أنت مقيّم لغوي محترف. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
+"${questionText}"
+
+أرجع النتيجة بصيغة JSON فقط بدون أي نص إضافي، بالشكل التالي بالضبط:
+{
+  "transcript": "النص المكتوب لما قاله المستخدم",
+  "grammarScore": رقم من 0 إلى 10,
+  "grammarFeedback": "ملاحظات على الأخطاء النحوية",
+  "pronunciationScore": رقم من 0 إلى 10,
+  "pronunciationFeedback": "الكلمات التي كان نطقها ضعيفًا وكيف يحسنها",
+  "fluencyScore": رقم من 0 إلى 10,
+  "confidenceScore": رقم من 0 إلى 10,
+  "overallFeedback": "ملخص عام وتوصيات للتحسين"
+}
+`;
+
+    try {
+      const model = this.genAI.getGenerativeModel({
+        model: this.modelName,
+        generationConfig: {
+          responseMimeType: 'application/json',
+        },
+      });
+
+      const result = await model.generateContent({
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: mimeType || 'audio/mp3', data: base64Audio } },
+            ],
+          },
+        ],
+      });
+
+      const responseText = result.response.text();
+      const cleaned = responseText.replace(/```json|```/g, '').trim();
+      return JSON.parse(cleaned);
+    } catch (error) {
+      this.logger.error('Error analyzing speaking audio:', error);
+      throw new Error(
+        'حدث خطأ أثناء تحليل التسجيل الصوتي، حاول مرة أخرى',
+      );
     }
   }
 
