@@ -29,11 +29,26 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-       callback(new Error('Not allowed by CORS'), false);
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/$/, '');
+
+      // Check allowedOrigins array
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
       }
+
+      // Automatically allow trusted deployment domains (.pages.dev, .vercel.app, localhost)
+      if (
+        normalizedOrigin.endsWith('.pages.dev') ||
+        normalizedOrigin.endsWith('.vercel.app') ||
+        normalizedOrigin.includes('localhost') ||
+        normalizedOrigin.includes('127.0.0.1')
+      ) {
+        return callback(null, true);
+      }
+
+      callback(null, false);
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
