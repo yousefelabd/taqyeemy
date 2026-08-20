@@ -38,6 +38,13 @@ export class AuthController {
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
+  
+  @Post('resend-otp')
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 }) // 3 resend requests per 15 min (IP & Email)
+  async resendOtp(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.resendOtp(forgotPasswordDto);
+  }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)

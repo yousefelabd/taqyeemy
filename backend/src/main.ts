@@ -32,7 +32,7 @@ async function bootstrap() {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(null, true); // Permissive callback for deployment flexibility
+       callback(new Error('Not allowed by CORS'), false);
       }
     },
     credentials: true,

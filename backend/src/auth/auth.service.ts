@@ -95,7 +95,21 @@ export class AuthService {
       email: dto.email,
     };
   }
+  async resendOtp(dto: ForgotPasswordDto) {
+    const { error } = await this.supabaseService.getAnonClient().auth.resend({
+      type: 'signup',
+      email: dto.email,
+    });
 
+    if (error) {
+      throw new BadRequestException(error.message || 'حدث خطأ أثناء إعادة إرسال رمز التحقق');
+    }
+
+    return {
+      message: 'تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني بنجاح',
+      email: dto.email,
+    };
+  }
   async resetPassword(dto: ResetPasswordOtpDto) {
     // 1. Verify recovery OTP
     const { data: verifyData, error: verifyError } = await this.supabaseService

@@ -260,7 +260,11 @@ export class OtpVerificationComponent implements OnInit, OnDestroy {
     this.cdr.markForCheck();
 
     try {
-      await this.authService.forgotPassword(this.email);
+      if (this.type === 'recovery') {
+        await this.authService.forgotPassword(this.email);
+      } else {
+        await this.authService.resendSignupOtp(this.email);
+      }
       this.successMessage.set('تم إعادة إرسال رمز التحقق بنجاح');
       this.startTimer();
     } catch (err: any) {
@@ -271,4 +275,4 @@ export class OtpVerificationComponent implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     }
   }
-}
+   }

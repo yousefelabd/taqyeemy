@@ -93,17 +93,21 @@ export class TestsService {
   ) {}
 
   async getQuestions(testType: string, level?: CefrLevel) {
-    if (testType === 'specific' && level) {
-      return selectLevelQuestions(level);
-    }
-    return selectPlacementQuestions();
+    const questions = testType === 'specific' && level
+      ? selectLevelQuestions(level)
+      : selectPlacementQuestions();
+
+    // إخفاء الإجابة الصحيحة قبل الإرسال للفرونت إند
+    return questions.map(({ correctAnswer, ...rest }) => rest);
   }
 
   async submitAndEvaluate(userId: string, token: string, dto: SubmitTestDto): Promise<TestResultResponse> {
     const targetLevel = dto.targetLevel as CefrLevel | undefined;
     const testType = dto.testType as TestType;
 
-    const questions = await this.getQuestions(testType, targetLevel);
+    const questions = testType === 'specific' && targetLevel
+      ? selectLevelQuestions(targetLevel)
+      : selectPlacementQuestions();
 
     // Call Gemini AI to evaluate student answers
     const aiEvaluation = await this.aiService.evaluateTest(

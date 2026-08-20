@@ -144,6 +144,18 @@ export class AuthService {
       throw err;
     }
   }
+  async resendSignupOtp(email: string): Promise<void> {
+  this._authState.update((s) => ({ ...s, isLoading: true }));
+  try {
+    await firstValueFrom(
+      this.http.post<{ message: string }>(`${API_URL}/resend-otp`, { email }),
+    );
+    this._authState.update((s) => ({ ...s, isLoading: false }));
+  } catch (err) {
+    this._authState.update((s) => ({ ...s, isLoading: false }));
+    throw err;
+  }
+}
 
   async resetPassword(email: string, token: string, newPassword: string): Promise<void> {
     this._authState.update((s) => ({ ...s, isLoading: true }));
