@@ -5,20 +5,33 @@ import { AppModule } from '../src/app.module';
 let app: any;
 
 export default async function handler(req: any, res: any) {
-  // Set CORS headers explicitly for Vercel Serverless Functions
-  const origin = req.headers.origin || '*';
-  res.setHeader('Access-Control-Allow-Origin', origin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Accept,Authorization,X-Requested-With');
+  const allowedOrigin = 'https://taqyeemy11.pages.dev';
+  const requestOrigin = req.headers.origin;
 
-  // Fast response for preflight OPTIONS requests
+  // CORS headers
+  if (requestOrigin === allowedOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+  }
+
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader(
+    'Access-Control-Allow-Methods',
+    'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  );
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Content-Type,Accept,Authorization,X-Requested-With',
+  );
+  res.setHeader('Vary', 'Origin');
+
+  // Preflight request
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(204).end();
   }
 
   if (!app) {
     app = await NestFactory.create(AppModule);
+
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -26,14 +39,23 @@ export default async function handler(req: any, res: any) {
         forbidNonWhitelisted: true,
       }),
     );
+
     app.enableCors({
-      origin: true,
+      origin: allowedOrigin,
       credentials: true,
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-      allowedHeaders: 'Content-Type,Accept,Authorization,X-Requested-With',
+      allowedHeaders: [
+        'Content-Type',
+        'Accept',
+        'Authorization',
+        'X-Requested-With',
+      ],
     });
+
     await app.init();
   }
+
   const expressInstance = app.getHttpAdapter().getInstance();
+
   return expressInstance(req, res);
 }
