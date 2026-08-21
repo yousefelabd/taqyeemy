@@ -57,21 +57,7 @@ export interface SpeakingAnalysisResult {
       </button>
     </div>
 
-    <!-- عرض نتيجة التحليل بعد الرد من الباك إند -->
-    <div *ngIf="analysisResult" class="analysis-result">
-      <h3>نتيجة التحليل اللحظية</h3>
-      <p><strong>النص المكتوب:</strong> {{ analysisResult.transcript }}</p>
-      <p>
-        <strong>القواعد:</strong> {{ analysisResult.grammarScore }}/10 —
-        {{ analysisResult.grammarFeedback }}
-      </p>
-      <p>
-        <strong>النطق:</strong> {{ analysisResult.pronunciationScore }}/10 —
-        {{ analysisResult.pronunciationFeedback }}
-      </p>
-      <p><strong>الطلاقة:</strong> {{ analysisResult.fluencyScore }}/10</p>
-      <p><strong>الثقة:</strong> {{ analysisResult.confidenceScore }}/10</p>
-      <p><strong>ملاحظات عامة:</strong> {{ analysisResult.overallFeedback }}</p>
+    
     </div>
   `,
   styles: [`
