@@ -114,12 +114,15 @@ ${speakingAnalysis ? `- Pre-evaluated Speaking Result: Grammar=${speakingAnalysi
 Questions and Student Answers:
 ${JSON.stringify(formattedQuestions, null, 2)}
 
+CRITICAL LANGUAGE INSTRUCTION:
+ALL feedback, strengths, and weaknesses MUST be written strictly in clear, encouraging, natural ARABIC (باللغة العربية فقط).
+
 Instructions:
 1. Objectively assess open-text writing answers and assign writingScore (0-100).
 2. Calculate an overall proficiency score (score) combining multiple-choice accuracy (${multipleChoiceScore}%), writingScore, and speaking performance.
 3. Assign the most accurate overall CEFR level ('A1', 'A2', 'B1', 'B2', 'C1', 'C2').
-4. Provide 3-5 comprehensive strengths in natural Arabic (نقاط القوة) summarizing all skills together (multiple choice + writing + speaking).
-5. Provide 3-5 comprehensive areas for improvement in natural Arabic (نقاط تحتاج تطوير) summarizing all skills together (multiple choice + writing + speaking).
+4. Provide 3-5 comprehensive strengths in natural ARABIC ONLY (نقاط القوة باللغة العربية الفصيحة) summarizing all skills together (multiple choice + writing + speaking).
+5. Provide 3-5 comprehensive areas for improvement in natural ARABIC ONLY (نقاط تحتاج تطوير باللغة العربية الفصيحة) summarizing all skills together (multiple choice + writing + speaking).
 Return the result strictly as a valid JSON object matching the schema.
 `;
 
@@ -170,19 +173,22 @@ Return the result strictly as a valid JSON object matching the schema.
     }
 
     const prompt = `
-أنت مقيّم لغوي محترف. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
+أنت مقيّم لغوي محترف وخبير في تقييم مهارة التحدث باللغة الإنجليزية وفق معايير CEFR. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
 "${questionText}"
+
+تنبيه هام ومطلق:
+جميع الملاحظات والنصائح والتقييمات والتوصيات (grammarFeedback, pronunciationFeedback, overallFeedback) يجب أن تكون مكتوبة حتماً باللغة العربية الفصيحة والشائعة وبأسلوب مشجع ومبسط للمستخدم، ما عدا النص المكتوب (transcript) يكون باللغة الإنجليزية كما نطقها المستخدم بالضبط.
 
 أرجع النتيجة بصيغة JSON فقط بدون أي نص إضافي، بالشكل التالي بالضبط:
 {
-  "transcript": "النص المكتوب لما قاله المستخدم",
+  "transcript": "English text of what the student actually said in the audio",
   "grammarScore": رقم من 0 إلى 10,
-  "grammarFeedback": "ملاحظات على الأخطاء النحوية",
+  "grammarFeedback": "ملاحظات تفصيلية ودقيقة على الأخطاء النحوية باللغة العربية",
   "pronunciationScore": رقم من 0 إلى 10,
-  "pronunciationFeedback": "الكلمات التي كان نطقها ضعيفًا وكيف يحسنها",
+  "pronunciationFeedback": "الكلمات التي كان نطقها ضعيفًا وكيفية نطقها الصحيح باللغة العربية",
   "fluencyScore": رقم من 0 إلى 10,
   "confidenceScore": رقم من 0 إلى 10,
-  "overallFeedback": "ملخص عام وتوصيات للتحسين"
+  "overallFeedback": "ملخص عام مشجع وتوصيات للتحسين باللغة العربية"
 }
 `;
 
