@@ -154,6 +154,21 @@ Return the result strictly as a valid JSON object matching the schema.
   async analyzeSpeakingAudio(audioBuffer: Buffer, mimeType: string, questionText: string) {
     const base64Audio = audioBuffer.toString('base64');
 
+    let normalizedMimeType = (mimeType || 'audio/mp3').toLowerCase();
+    if (normalizedMimeType.includes('m4a') || normalizedMimeType.includes('mp4')) {
+      normalizedMimeType = 'audio/m4a';
+    } else if (normalizedMimeType.includes('wav')) {
+      normalizedMimeType = 'audio/wav';
+    } else if (normalizedMimeType.includes('webm')) {
+      normalizedMimeType = 'audio/webm';
+    } else if (normalizedMimeType.includes('ogg')) {
+      normalizedMimeType = 'audio/ogg';
+    } else if (normalizedMimeType.includes('aac')) {
+      normalizedMimeType = 'audio/aac';
+    } else if (normalizedMimeType === 'application/octet-stream') {
+      normalizedMimeType = 'audio/mp3';
+    }
+
     const prompt = `
 أنت مقيّم لغوي محترف. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
 "${questionText}"
@@ -185,7 +200,7 @@ Return the result strictly as a valid JSON object matching the schema.
             role: 'user',
             parts: [
               { text: prompt },
-              { inlineData: { mimeType: mimeType || 'audio/mp3', data: base64Audio } },
+              { inlineData: { mimeType: normalizedMimeType, data: base64Audio } },
             ],
           },
         ],
