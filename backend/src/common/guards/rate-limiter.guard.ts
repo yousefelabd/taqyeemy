@@ -78,7 +78,9 @@ export class CompositeRateLimiterGuard implements CanActivate {
       });
 
       if (error) {
-        // Fallback to in-memory check if DB RPC doesn't exist yet or fails
+        // [STRATEGY: Fail-Open with In-Memory Soft Limiting]
+        // If DB RPC fails or table is unreachable during network glitch, fallback to in-memory map
+        // to prevent blocking legitimate users while providing emergency soft rate limiting per instance.
         return this.checkInMemoryFallback(fallbackMap, key, maxAttempts, ttlSeconds * 1000);
       }
 
