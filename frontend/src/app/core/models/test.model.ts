@@ -1,6 +1,6 @@
-﻿export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+export type CefrLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type TestType = 'placement' | 'specific';
-export type QuestionType = 'multiple-choice' | 'open-text';
+export type QuestionType = 'multiple-choice' | 'open-text' | 'speaking';
 
 export interface QuestionOption {
   id: string;
@@ -13,7 +13,7 @@ export interface Question {
   type: QuestionType;
   options?: QuestionOption[];
   targetLevel?: CefrLevel;
-  skill: 'grammar' | 'vocabulary' | 'reading' | 'writing';
+  skill: 'grammar' | 'vocabulary' | 'reading' | 'writing' | 'speaking';
 }
 
 export interface TestSession {

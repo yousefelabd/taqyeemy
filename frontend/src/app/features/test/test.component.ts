@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, signal, computed, inject } from '@angular/core';
+import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -11,11 +11,22 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TestService } from '../../core/services/test.service';
 import { ResultsService } from '../../core/services/results.service';
 import { Question } from '../../core/models/test.model';
+import { SpeakingUploadComponent, SpeakingAnalysisResult } from './speaking-upload/speaking-upload.component';
 
 @Component({
   selector: 'app-test',
   standalone: true,
-  imports: [FormsModule, MatCardModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule, MatProgressBarModule, MatProgressSpinnerModule],
+  imports: [
+    FormsModule,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatProgressBarModule,
+    MatProgressSpinnerModule,
+    SpeakingUploadComponent,
+  ],
   template: `
     @if (session()) {
       <div class="page-container test-page">
@@ -74,6 +85,13 @@ import { Question } from '../../core/models/test.model';
                   </textarea>
                   <mat-hint>اكتب بالإنجليزية — الواجهة عربية فقط</mat-hint>
                 </mat-form-field>
+              }
+
+              <!-- Speaking Upload -->
+              @if (currentQuestion()!.type === 'speaking') {
+                <app-speaking-upload
+                  [questionText]="currentQuestion()!.text"
+                  (analyzed)="onSpeakingAnalyzed($event)" />
               }
             </mat-card-content>
 
@@ -168,6 +186,14 @@ export class TestComponent implements OnInit {
     if (q) this.testService.submitAnswer(q.id, answer);
   }
 
+  onSpeakingAnalyzed(result: SpeakingAnalysisResult): void {
+    const jsonString = JSON.stringify(result);
+    this.selectAnswer(jsonString);
+    if (!this.isLastQuestion()) {
+      setTimeout(() => this.nextQuestion(), 1200);
+    }
+  }
+
   nextQuestion(): void {
     if (this.currentIndex() < this.totalQuestions() - 1) {
       this.currentIndex.update((i) => i + 1);
@@ -194,12 +220,12 @@ export class TestComponent implements OnInit {
   }
 
   skillIcon(skill: string): string {
-    const icons: Record<string, string> = { grammar: 'rule', vocabulary: 'library_books', reading: 'menu_book', writing: 'edit_note' };
+    const icons: Record<string, string> = { grammar: 'rule', vocabulary: 'library_books', reading: 'menu_book', writing: 'edit_note', speaking: 'mic' };
     return icons[skill] ?? 'quiz';
   }
 
   skillLabel(skill: string): string {
-    const labels: Record<string, string> = { grammar: 'قواعد', vocabulary: 'مفردات', reading: 'قراءة', writing: 'كتابة' };
+    const labels: Record<string, string> = { grammar: 'قواعد', vocabulary: 'مفردات', reading: 'قراءة', writing: 'كتابة', speaking: 'تحدث' };
     return labels[skill] ?? skill;
   }
 }

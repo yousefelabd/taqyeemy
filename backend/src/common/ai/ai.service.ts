@@ -3,9 +3,14 @@ import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { CefrLevel, TestType } from '../interfaces/test-result.interface';
 
+import { SpeakingAnalysisResult } from '../interfaces/test-result.interface';
+
 export interface AiEvaluationResult {
   score: number;
   level: CefrLevel;
+  multipleChoiceScore?: number;
+  writingScore?: number;
+  speakingAnalysis?: SpeakingAnalysisResult;
   strengths: string[];
   weaknesses: string[];
 }
@@ -29,6 +34,29 @@ export class AiService {
     targetLevel?: CefrLevel,
   ): Promise<AiEvaluationResult> {
     try {
+      // 1. Calculate Multiple Choice Score directly
+      const mcqQuestions = questions.filter((q) => q.type === 'multiple-choice');
+      let mcqCorrectCount = 0;
+      for (const mcq of mcqQuestions) {
+        if (answers[mcq.id] && answers[mcq.id] === mcq.correctAnswer) {
+          mcqCorrectCount++;
+        }
+      }
+      const multipleChoiceScore = mcqQuestions.length > 0
+        ? Math.round((mcqCorrectCount / mcqQuestions.length) * 100)
+        : 80;
+
+      // 2. Extract Speaking Analysis if present in answers
+      let speakingAnalysis: SpeakingAnalysisResult | undefined = undefined;
+      const speakingQ = questions.find((q) => q.type === 'speaking');
+      if (speakingQ && answers[speakingQ.id]) {
+        try {
+          speakingAnalysis = JSON.parse(answers[speakingQ.id]);
+        } catch (err) {
+          this.logger.warn('Could not parse speaking analysis JSON from answers:', err);
+        }
+      }
+
       const model = this.genAI.getGenerativeModel({
         model: this.modelName,
         generationConfig: {
@@ -36,9 +64,13 @@ export class AiService {
           responseSchema: {
             type: SchemaType.OBJECT,
             properties: {
+              writingScore: {
+                type: SchemaType.INTEGER,
+                description: 'Writing evaluation score from 0 to 100 based on grammar, structure, and vocabulary depth',
+              },
               score: {
                 type: SchemaType.INTEGER,
-                description: 'Overall proficiency score from 0 to 100 based on CEFR benchmarks',
+                description: 'Overall proficiency score from 0 to 100 combining multiple-choice, writing, and speaking performance',
               },
               level: {
                 type: SchemaType.STRING,
@@ -47,15 +79,15 @@ export class AiService {
               strengths: {
                 type: SchemaType.ARRAY,
                 items: { type: SchemaType.STRING },
-                description: '2 to 4 specific strength bullet points in natural Arabic highlighting what the student did well',
+                description: '3 to 5 comprehensive strength bullet points in natural Arabic covering multiple-choice, writing, and speaking skills combined',
               },
               weaknesses: {
                 type: SchemaType.ARRAY,
                 items: { type: SchemaType.STRING },
-                description: '2 to 4 specific areas for improvement bullet points in natural Arabic with clear grammatical or lexical focus',
+                description: '3 to 5 comprehensive improvement areas bullet points in natural Arabic covering multiple-choice, writing, and speaking skills combined',
               },
             },
-            required: ['score', 'level', 'strengths', 'weaknesses'],
+            required: ['writingScore', 'score', 'level', 'strengths', 'weaknesses'],
           },
         },
       });
@@ -66,7 +98,7 @@ export class AiService {
         type: q.type,
         skill: q.skill,
         targetLevel: q.targetLevel,
-        correctAnswer: q.correctAnswer || '(Evaluated based on open response)',
+        correctAnswer: q.correctAnswer || '(Evaluated based on open response / speaking audio)',
         studentAnswer: answers[q.id] || '(No Answer Provided)',
       }));
 
@@ -76,18 +108,18 @@ Evaluate the following student's answers to an English assessment test.
 
 Assessment Details:
 - Test Type: ${testType} ${targetLevel ? `(Target Level: ${targetLevel})` : ''}
-- Assessment Criteria: CEFR guidelines (Grammar accuracy, vocabulary range, sentence structure, coherence, writing depth).
+- Assessment Criteria: CEFR guidelines (Grammar accuracy, vocabulary range, sentence structure, coherence, writing depth, speaking fluency).
+${speakingAnalysis ? `- Pre-evaluated Speaking Result: Grammar=${speakingAnalysis.grammarScore}/10, Pronunciation=${speakingAnalysis.pronunciationScore}/10, Fluency=${speakingAnalysis.fluencyScore}/10, Confidence=${speakingAnalysis.confidenceScore}/10` : ''}
 
 Questions and Student Answers:
 ${JSON.stringify(formattedQuestions, null, 2)}
 
 Instructions:
-1. Objectively assess multiple-choice answers for grammatical/lexical accuracy against correctAnswer.
-2. In-depth assess open-text writing answers for sentence structure, spelling, vocabulary richness, and coherence.
-3. Calculate an overall proficiency score between 0 and 100.
-4. Assign the most accurate CEFR level ('A1', 'A2', 'B1', 'B2', 'C1', 'C2').
-5. Provide 2-4 specific, actionable strengths in natural Arabic (نقاط القوة).
-6. Provide 2-4 specific, actionable areas for improvement in natural Arabic (نقاط تحتاج تطوير).
+1. Objectively assess open-text writing answers and assign writingScore (0-100).
+2. Calculate an overall proficiency score (score) combining multiple-choice accuracy (${multipleChoiceScore}%), writingScore, and speaking performance.
+3. Assign the most accurate overall CEFR level ('A1', 'A2', 'B1', 'B2', 'C1', 'C2').
+4. Provide 3-5 comprehensive strengths in natural Arabic (نقاط القوة) summarizing all skills together (multiple choice + writing + speaking).
+5. Provide 3-5 comprehensive areas for improvement in natural Arabic (نقاط تحتاج تطوير) summarizing all skills together (multiple choice + writing + speaking).
 Return the result strictly as a valid JSON object matching the schema.
 `;
 
@@ -98,11 +130,15 @@ Return the result strictly as a valid JSON object matching the schema.
       // Validate level
       const validLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
       const level: CefrLevel = validLevels.includes(parsed.level) ? parsed.level : (targetLevel || 'B1');
-      const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : 70;
+      const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, parsed.score)) : 75;
+      const writingScore = typeof parsed.writingScore === 'number' ? Math.max(0, Math.min(100, parsed.writingScore)) : 70;
 
       const result: AiEvaluationResult = {
         score,
         level,
+        multipleChoiceScore,
+        writingScore,
+        speakingAnalysis,
         strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
         weaknesses: Array.isArray(parsed.weaknesses) ? parsed.weaknesses : [],
       };

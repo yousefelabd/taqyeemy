@@ -64,6 +64,25 @@ const QUESTION_BANK = [
   { id: 'c2_w1', text: 'Write a nuanced analysis (4-5 sentences) of whether artificial intelligence poses an existential risk to humanity, using advanced academic vocabulary and complex sentence structures.', type: 'open-text', skill: 'writing', targetLevel: 'C2' },
 ];
 
+// ── SPEAKING QUESTION BANK ─────────────────────────────────────────────────
+const SPEAKING_QUESTION_BANK = [
+  // ── Beginner (A1 / A2) ──────────────────────────────────────────────────────
+  { id: 'sp_a1_1', text: 'Please introduce yourself. Talk about your name, age, hometown, and what you do for work or study.', type: 'speaking', skill: 'speaking', targetLevel: 'A1' },
+  { id: 'sp_a2_1', text: 'Describe a typical daily routine of yours. What do you usually do in the morning and evening?', type: 'speaking', skill: 'speaking', targetLevel: 'A2' },
+  { id: 'sp_a2_2', text: 'Talk about your favorite hobby or sport. Why do you enjoy it, and how often do you do it?', type: 'speaking', skill: 'speaking', targetLevel: 'A2' },
+
+  // ── Intermediate (B1 / B2) ──────────────────────────────────────────────────
+  { id: 'sp_b1_1', text: 'Describe a memorable holiday or trip you took. Where did you go, and what made it special?', type: 'speaking', skill: 'speaking', targetLevel: 'B1' },
+  { id: 'sp_b1_2', text: 'Talk about your personal or professional goals for the next three years and how you plan to achieve them.', type: 'speaking', skill: 'speaking', targetLevel: 'B1' },
+  { id: 'sp_b2_1', text: 'Discuss the advantages and disadvantages of remote working compared to traditional office environments.', type: 'speaking', skill: 'speaking', targetLevel: 'B2' },
+  { id: 'sp_b2_2', text: 'How has smartphones and social media changed the way people build real-life relationships today?', type: 'speaking', skill: 'speaking', targetLevel: 'B2' },
+
+  // ── Advanced (C1 / C2) ──────────────────────────────────────────────────────
+  { id: 'sp_c1_1', text: 'Analyze the impact of artificial intelligence on future job opportunities and the education system.', type: 'speaking', skill: 'speaking', targetLevel: 'C1' },
+  { id: 'sp_c1_2', text: 'Do you believe global climate policies should prioritize economic expansion or environmental conservation? Justify your view.', type: 'speaking', skill: 'speaking', targetLevel: 'C1' },
+  { id: 'sp_c2_1', text: 'Evaluate how recommendation algorithms in digital media influence public opinions and shape contemporary cultural trends.', type: 'speaking', skill: 'speaking', targetLevel: 'C2' },
+];
+
 // ─────────────────────────────────────────────────────────────────────────────
 // QUESTION SELECTION LOGIC
 // ─────────────────────────────────────────────────────────────────────────────
@@ -86,6 +105,18 @@ function selectLevelQuestions(level: CefrLevel) {
   return QUESTION_BANK.filter(q => q.targetLevel === level);
 }
 
+function selectSpeakingQuestion(targetLevel?: CefrLevel, userHistoryCount: number = 0) {
+  let candidatePool = SPEAKING_QUESTION_BANK;
+  if (targetLevel) {
+    const levelMatches = SPEAKING_QUESTION_BANK.filter((q) => q.targetLevel === targetLevel);
+    if (levelMatches.length > 0) {
+      candidatePool = levelMatches;
+    }
+  }
+  const index = userHistoryCount % candidatePool.length;
+  return candidatePool[index];
+}
+
 @Injectable()
 export class TestsService {
   constructor(
@@ -93,26 +124,52 @@ export class TestsService {
     private readonly aiService: AiService,
   ) {}
 
-  async getQuestions(testType: string, level?: CefrLevel) {
+  async getQuestions(testType: string, level?: CefrLevel, userId: string = 'user', token?: string) {
+    let historyCount = 0;
+    if (token) {
+      try {
+        const history = await this.resultsService.getHistory(userId, token);
+        historyCount = history.length;
+      } catch {
+        historyCount = 0;
+      }
+    }
+
     const questions = testType === 'specific' && level
       ? selectLevelQuestions(level)
       : selectPlacementQuestions();
 
+    const speakingQ = selectSpeakingQuestion(level, historyCount);
+    const finalQuestions = [...questions, speakingQ];
+
     // إخفاء الإجابة الصحيحة قبل الإرسال للفرونت إند
-    return questions.map(({ correctAnswer, ...rest }) => rest);
+    return finalQuestions.map(({ correctAnswer, ...rest }: any) => rest);
   }
 
   async submitAndEvaluate(userId: string, token: string, dto: SubmitTestDto): Promise<TestResultResponse> {
     const targetLevel = dto.targetLevel as CefrLevel | undefined;
     const testType = dto.testType as TestType;
 
+    let historyCount = 0;
+    if (token) {
+      try {
+        const history = await this.resultsService.getHistory(userId, token);
+        historyCount = history.length;
+      } catch {
+        historyCount = 0;
+      }
+    }
+
     const questions = testType === 'specific' && targetLevel
       ? selectLevelQuestions(targetLevel)
       : selectPlacementQuestions();
 
+    const speakingQ = selectSpeakingQuestion(targetLevel, historyCount);
+    const finalQuestions = [...questions, speakingQ];
+
     // Call Gemini AI to evaluate student answers
     const aiEvaluation = await this.aiService.evaluateTest(
-      questions,
+      finalQuestions,
       dto.answers || {},
       testType,
       targetLevel,
@@ -123,6 +180,9 @@ export class TestsService {
       userId,
       level: aiEvaluation.level,
       score: aiEvaluation.score,
+      multipleChoiceScore: aiEvaluation.multipleChoiceScore,
+      writingScore: aiEvaluation.writingScore,
+      speakingAnalysis: aiEvaluation.speakingAnalysis,
       strengths: aiEvaluation.strengths,
       weaknesses: aiEvaluation.weaknesses,
       testType,

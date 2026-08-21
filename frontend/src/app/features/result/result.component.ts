@@ -1,4 +1,4 @@
-﻿import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -18,44 +18,130 @@ import { TestResult } from '../../core/models/result.model';
     @if (isLoading()) {
       <div class="loading-state">
         <mat-spinner diameter="40" />
-        <p>جاري تحميل النتيجة...</p>
+        <p>جاري تحميل النتيجة والتفاصيل...</p>
       </div>
     } @else if (result()) {
       <div class="page-container result-page">
-        <!-- Hero -->
-        <div class="result-hero">
+        <!-- Header Title -->
+        <div class="result-hero-header">
+          <h1 class="result-title">🎉 ملخص تقييم الاختبار بالكامل</h1>
+          <p class="result-subtitle">تفاصيل الأداء في مهارات الاختيارات، الكتابة، والتحدث الصوتي</p>
+        </div>
+
+        <!-- 1. Multiple Choice Score Card -->
+        <mat-card class="skill-score-card mcq-card">
+          <mat-card-content>
+            <div class="skill-header">
+              <div class="skill-title-group">
+                <mat-icon class="skill-icon">quiz</mat-icon>
+                <div>
+                  <h2>1. درجة الأسئلة الاختيارية (Multiple Choice)</h2>
+                  <p>تقييم الدقة النحوية والمفردات وحصيلة الكلمات</p>
+                </div>
+              </div>
+              <div class="score-badge mcq-badge" dir="ltr">
+                {{ result()!.multipleChoiceScore ?? 80 }}%
+              </div>
+            </div>
+            <mat-progress-bar mode="determinate" [value]="result()!.multipleChoiceScore ?? 80" class="mcq-bar" />
+          </mat-card-content>
+        </mat-card>
+
+        <!-- 2. Writing Score Card -->
+        <mat-card class="skill-score-card writing-card">
+          <mat-card-content>
+            <div class="skill-header">
+              <div class="skill-title-group">
+                <mat-icon class="skill-icon">edit_note</mat-icon>
+                <div>
+                  <h2>2. درجة التعبير والكتابة (Writing Score)</h2>
+                  <p>تقييم تسلسل الأفكار، تركيب الجمل، وغزارة المفردات</p>
+                </div>
+              </div>
+              <div class="score-badge writing-badge" dir="ltr">
+                {{ result()!.writingScore ?? 75 }}%
+              </div>
+            </div>
+            <mat-progress-bar mode="determinate" [value]="result()!.writingScore ?? 75" class="writing-bar" />
+          </mat-card-content>
+        </mat-card>
+
+        <!-- 3. Speaking Score Card (AI Speaking Performance Card) -->
+        @if (result()!.speakingAnalysis) {
+          <mat-card class="speaking-card">
+            <mat-card-header>
+              <mat-card-title class="speaking-card-title">
+                <mat-icon color="primary">mic</mat-icon>
+                3. تقييم التحدث الصوتي بالذكاء الاصطناعي (AI Speaking Evaluation)
+              </mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="speaking-card-body">
+              <div class="transcript-box">
+                <h4><mat-icon>record_voice_over</mat-icon> التفريغ النصي للتسجيل (Transcript):</h4>
+                <p class="transcript-text" dir="ltr">"{{ result()!.speakingAnalysis!.transcript }}"</p>
+              </div>
+
+              <div class="speaking-scores-grid">
+                <div class="speaking-stat">
+                  <span class="stat-num">{{ result()!.speakingAnalysis!.grammarScore }}/10</span>
+                  <span class="stat-name">القواعد (Grammar)</span>
+                  <span class="stat-note">{{ result()!.speakingAnalysis!.grammarFeedback }}</span>
+                </div>
+                <div class="speaking-stat">
+                  <span class="stat-num">{{ result()!.speakingAnalysis!.pronunciationScore }}/10</span>
+                  <span class="stat-name">النطق (Pronunciation)</span>
+                  <span class="stat-note">{{ result()!.speakingAnalysis!.pronunciationFeedback }}</span>
+                </div>
+                <div class="speaking-stat">
+                  <span class="stat-num">{{ result()!.speakingAnalysis!.fluencyScore }}/10</span>
+                  <span class="stat-name">الطلاقة (Fluency)</span>
+                </div>
+                <div class="speaking-stat">
+                  <span class="stat-num">{{ result()!.speakingAnalysis!.confidenceScore }}/10</span>
+                  <span class="stat-name">الثقة (Confidence)</span>
+                </div>
+              </div>
+
+              <div class="speaking-overall-feedback">
+                <h4><mat-icon>tips_and_updates</mat-icon> ملاحظات وتوصيات التحسين الصوتي:</h4>
+                <p>{{ result()!.speakingAnalysis!.overallFeedback }}</p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <!-- 4. Overall Score / Overall CEFR Level Card -->
+        <div class="overall-section">
           <div [class]="'level-circle level-' + result()!.level.toLowerCase()">
             <span class="level-code-big">{{ result()!.level }}</span>
             <span class="level-arabic">{{ levelArabic(result()!.level) }}</span>
           </div>
-          <h1 class="result-title">🎉 أكملت الاختبار!</h1>
-          <p class="result-subtitle">مستواك في اللغة الإنجليزية وفق معيار CEFR</p>
+          <mat-card class="score-card overall-card">
+            <mat-card-content>
+              <div class="score-row">
+                <div class="score-display" dir="ltr">
+                  <span class="score-number">{{ result()!.score }}</span>
+                  <span class="score-label">/ 100</span>
+                </div>
+                <div class="score-meta">
+                  <h2>4. التقييم الإجمالي الشامل (Overall Level & Score)</h2>
+                  <p>نوع الاختبار: <strong>{{ result()!.testType === 'placement' ? 'تحديد المستوى' : 'اختبار مستوى ' + result()!.targetLevel }}</strong></p>
+                  <p>التاريخ: <strong>{{ result()!.completedAt | date: 'dd/MM/yyyy' }}</strong></p>
+                </div>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="result()!.score" class="score-bar" />
+            </mat-card-content>
+          </mat-card>
         </div>
 
-        <!-- Score -->
-        <mat-card class="score-card">
-          <mat-card-content>
-            <div class="score-row">
-              <div class="score-display" dir="ltr">
-                <span class="score-number">{{ result()!.score }}</span>
-                <span class="score-label">/ 100</span>
-              </div>
-              <div class="score-meta">
-                <p>نوع الاختبار: <strong>{{ result()!.testType === 'placement' ? 'تحديد المستوى' : 'اختبار مستوى ' + result()!.targetLevel }}</strong></p>
-                <p>التاريخ: <strong>{{ result()!.completedAt | date: 'dd/MM/yyyy' }}</strong></p>
-              </div>
-            </div>
-            <mat-progress-bar mode="determinate" [value]="result()!.score" class="score-bar" />
-          </mat-card-content>
-        </mat-card>
-
+        <!-- 5. Strengths & Weaknesses (Combined Summary in Last Section) -->
         <div class="feedback-grid">
           <!-- Strengths -->
           <mat-card class="feedback-card strengths-card">
             <mat-card-header>
               <mat-card-title>
                 <mat-icon color="primary" style="vertical-align:middle;margin-left:8px">trending_up</mat-icon>
-                نقاط القوة
+                5. نقاط القوة الشاملة (لكل المهارات)
               </mat-card-title>
             </mat-card-header>
             <mat-card-content>
@@ -75,7 +161,7 @@ import { TestResult } from '../../core/models/result.model';
             <mat-card-header>
               <mat-card-title>
                 <mat-icon color="warn" style="vertical-align:middle;margin-left:8px">trending_down</mat-icon>
-                نقاط تحتاج تطوير
+                نقاط تحتاج تطوير (لكل المهارات)
               </mat-card-title>
             </mat-card-header>
             <mat-card-content>
@@ -118,8 +204,36 @@ import { TestResult } from '../../core/models/result.model';
   styles: [`
     .result-page { max-width: 900px; }
     .loading-state { text-align: center; padding: 64px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
-    .result-hero { text-align: center; padding: 48px 0 32px; }
-    .level-circle { width: 140px; height: 140px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 24px; border: 6px solid currentColor; }
+    .result-hero-header { text-align: center; padding: 32px 0 24px; }
+    .result-title { font-size: 2rem; font-weight: 700; margin: 0 0 8px; color: var(--mat-sys-primary); }
+    .result-subtitle { color: var(--mat-sys-on-surface-variant); margin: 0; }
+    .skill-score-card { margin-bottom: 20px; border-radius: 12px; }
+    .skill-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .skill-title-group { display: flex; align-items: center; gap: 12px; }
+    .skill-title-group h2 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+    .skill-title-group p { font-size: 13px; color: var(--mat-sys-on-surface-variant); margin: 2px 0 0; }
+    .skill-icon { font-size: 28px; width: 28px; height: 28px; color: var(--mat-sys-primary); }
+    .score-badge { font-size: 1.5rem; font-weight: 700; padding: 6px 16px; border-radius: 20px; background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); }
+    .writing-badge { background: #e0f2fe; color: #0369a1; }
+    .mcq-bar { height: 8px; border-radius: 4px; }
+    .writing-bar { height: 8px; border-radius: 4px; }
+    .speaking-card { margin-bottom: 32px; border: 2px solid var(--mat-sys-primary); border-radius: 12px; background: #faf5ff; }
+    .speaking-card-title { display: flex; align-items: center; gap: 8px; font-size: 1.2rem; font-weight: 700; color: var(--mat-sys-primary); }
+    .speaking-card-body { display: flex; flex-direction: column; gap: 20px; padding-top: 12px; }
+    .transcript-box { background: white; padding: 16px; border-radius: 8px; border: 1px solid #e9d5ff; }
+    .transcript-box h4 { margin: 0 0 8px; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--mat-sys-primary); }
+    .transcript-text { font-style: italic; color: #4b5563; margin: 0; line-height: 1.6; }
+    .speaking-scores-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media (max-width: 768px) { .speaking-scores-grid { grid-template-columns: 1fr 1fr; } }
+    .speaking-stat { background: white; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #e9d5ff; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .stat-num { font-size: 1.4rem; font-weight: 700; color: var(--mat-sys-primary); }
+    .stat-name { font-size: 12px; font-weight: 600; color: #6b7280; margin-top: 4px; }
+    .stat-note { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .speaking-overall-feedback { background: white; padding: 16px; border-radius: 8px; border: 1px solid #e9d5ff; }
+    .speaking-overall-feedback h4 { margin: 0 0 6px; display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--mat-sys-primary); }
+    .speaking-overall-feedback p { margin: 0; color: #374151; font-size: 14px; line-height: 1.6; }
+    .overall-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 32px; margin-top: 16px; }
+    .level-circle { width: 140px; height: 140px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; margin-bottom: 20px; border: 6px solid currentColor; }
     .level-circle.level-a1 { background: #e8f5e9; color: #2e7d32; }
     .level-circle.level-a2 { background: #f1f8e9; color: #558b2f; }
     .level-circle.level-b1 { background: #fff8e1; color: #f57f17; }
@@ -128,13 +242,13 @@ import { TestResult } from '../../core/models/result.model';
     .level-circle.level-c2 { background: #ede7f6; color: #4527a0; }
     .level-code-big { font-size: 2.5rem; font-weight: 700; }
     .level-arabic { font-size: 14px; font-weight: 600; margin-top: 4px; }
-    .result-title { font-size: 2rem; font-weight: 700; margin: 0 0 8px; }
-    .result-subtitle { color: var(--mat-sys-on-surface-variant); margin: 0; }
+    .overall-card { width: 100%; }
     .score-card { margin-bottom: 32px; }
     .score-row { display: flex; align-items: center; gap: 32px; margin-bottom: 16px; }
     .score-display { display: flex; align-items: baseline; gap: 4px; }
     .score-number { font-size: 3.5rem; font-weight: 700; color: var(--mat-sys-primary); }
     .score-label { font-size: 1.2rem; color: var(--mat-sys-on-surface-variant); }
+    .score-meta h2 { font-size: 1.3rem; font-weight: 700; margin: 0 0 8px; color: var(--mat-sys-primary); }
     .score-meta p { margin: 4px 0; color: var(--mat-sys-on-surface-variant); font-size: 14px; }
     .score-bar { height: 10px; border-radius: 5px; }
     .feedback-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; }
