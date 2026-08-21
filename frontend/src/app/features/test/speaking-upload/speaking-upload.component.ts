@@ -1,4 +1,4 @@
-import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -37,7 +37,7 @@ export interface SpeakingAnalysisResult {
       <input
         id="audioUpload"
         type="file"
-        accept="audio/*"
+        accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.aac"
         (change)="onFileSelected($event)"
         style="display: none;" />
 
@@ -53,14 +53,14 @@ export interface SpeakingAnalysisResult {
         [disabled]="isLoading"
         (click)="submitRecording(questionText)">
         <mat-spinner *ngIf="isLoading" diameter="20"></mat-spinner>
-        <span *ngIf="!isLoading">إرسال الإجابة</span>
+        <span *ngIf="!isLoading">إرسال وتوجيه الإجابة</span>
       </button>
     </div>
 
     <!-- عرض نتيجة التحليل بعد الرد من الباك إند -->
     <div *ngIf="analysisResult" class="analysis-result">
-      <h3>نتيجة التحليل</h3>
-      <p><strong>النص:</strong> {{ analysisResult.transcript }}</p>
+      <h3>نتيجة التحليل اللحظية</h3>
+      <p><strong>النص المكتوب:</strong> {{ analysisResult.transcript }}</p>
       <p>
         <strong>القواعد:</strong> {{ analysisResult.grammarScore }}/10 —
         {{ analysisResult.grammarFeedback }}
@@ -124,6 +124,7 @@ export class SpeakingUploadComponent {
   @Output() analyzed = new EventEmitter<SpeakingAnalysisResult>();
 
   private http = inject(HttpClient);
+  private cdr = inject(ChangeDetectorRef);
 
   selectedFile: File | null = null;
   errorMessage: string | null = null;
@@ -138,32 +139,43 @@ export class SpeakingUploadComponent {
 
     this.errorMessage = null;
     this.selectedFile = null;
+    this.cdr.markForCheck();
 
     try {
       const duration = await this.getAudioDuration(file);
 
-      if (duration > this.MAX_DURATION_SECONDS) {
+      if (duration > 0 && duration > this.MAX_DURATION_SECONDS) {
         this.errorMessage = `مدة التسجيل ${Math.round(duration)} ثانية. يجب أن تكون 90 ثانية كحد أقصى.`;
         input.value = '';
+        this.cdr.markForCheck();
         return;
       }
 
       this.selectedFile = file;
     } catch {
-      this.errorMessage = 'تعذر قراءة الملف الصوتي، يرجى تجربة ملف آخر.';
-      input.value = '';
+      // Fallback: Accept file and let backend music-metadata validate exact duration
+      this.selectedFile = file;
+    } finally {
+      this.cdr.markForCheck();
     }
   }
 
   private getAudioDuration(file: File): Promise<number> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const audio = new Audio();
       audio.preload = 'metadata';
       audio.onloadedmetadata = () => {
         URL.revokeObjectURL(audio.src);
-        resolve(audio.duration);
+        if (isNaN(audio.duration) || !isFinite(audio.duration)) {
+          resolve(0);
+        } else {
+          resolve(audio.duration);
+        }
       };
-      audio.onerror = () => reject(new Error('تعذر قراءة الملف الصوتي'));
+      audio.onerror = () => {
+        // Fallback: don't block the user, let backend music-metadata validate it!
+        resolve(0);
+      };
       audio.src = URL.createObjectURL(file);
     });
   }
@@ -173,6 +185,7 @@ export class SpeakingUploadComponent {
 
     this.isLoading = true;
     this.errorMessage = null;
+    this.cdr.markForCheck();
 
     const formData = new FormData();
     formData.append('audio', this.selectedFile);
@@ -188,9 +201,11 @@ export class SpeakingUploadComponent {
         this.analyzed.emit(this.analysisResult);
       }
     } catch (err: any) {
-      this.errorMessage = err?.error?.message || 'حدث خطأ أثناء تحليل التسجيل الصوتي';
+      const msg = err?.error?.message || 'حدث خطأ أثناء تحليل التسجيل الصوتي';
+      this.errorMessage = Array.isArray(msg) ? msg[0] : msg;
     } finally {
       this.isLoading = false;
+      this.cdr.markForCheck();
     }
   }
 }
