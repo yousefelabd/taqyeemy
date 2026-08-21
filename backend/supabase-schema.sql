@@ -23,11 +23,13 @@ create table if not exists public.test_results (
 alter table public.test_results enable row level security;
 
 -- 3. Policy: Users can only view their own test results
+drop policy if exists "Users can view their own test results" on public.test_results;
 create policy "Users can view their own test results"
   on public.test_results for select
   using (auth.uid() = user_id);
 
 -- 4. Policy: Users can only insert their own test results
+drop policy if exists "Users can insert their own test results" on public.test_results;
 create policy "Users can insert their own test results"
   on public.test_results for insert
   with check (auth.uid() = user_id);
