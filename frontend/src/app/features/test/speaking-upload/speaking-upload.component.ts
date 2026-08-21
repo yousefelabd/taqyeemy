@@ -1,4 +1,4 @@
-﻿import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -129,7 +129,7 @@ export class SpeakingUploadComponent {
   errorMessage: string | null = null;
   isLoading = false;
   analysisResult: SpeakingAnalysisResult | null = null;
-  readonly MAX_DURATION_SECONDS = 120;
+  readonly MAX_DURATION_SECONDS = 90;
 
   async onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -143,7 +143,7 @@ export class SpeakingUploadComponent {
       const duration = await this.getAudioDuration(file);
 
       if (duration > this.MAX_DURATION_SECONDS) {
-        this.errorMessage = `مدة التسجيل ${Math.round(duration)} ثانية. يجب أن تكون أقل من دقيقتين.`;
+        this.errorMessage = `مدة التسجيل ${Math.round(duration)} ثانية. يجب أن تكون 90 ثانية كحد أقصى.`;
         input.value = '';
         return;
       }

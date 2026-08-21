@@ -207,9 +207,9 @@ export class TestsService {
       durationSeconds = 0;
     }
 
-    if (durationSeconds > 120) {
+    if (durationSeconds > 90) {
       throw new BadRequestException(
-        `مدة التسجيل ${Math.round(durationSeconds)} ثانية، يجب أن تكون أقل من دقيقتين`,
+        `مدة التسجيل ${Math.round(durationSeconds)} ثانية، يجب أن تكون 90 ثانية كحد أقصى`,
       );
     }
 
