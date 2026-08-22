@@ -162,7 +162,10 @@ export class TestsService {
       ? selectLevelQuestions(targetLevel)
       : selectPlacementQuestions();
 
-    const speakingQ = selectSpeakingQuestion(targetLevel, historyCount);
+    // نجيب السؤال الصوتي من إجابات الفرونت إند نفسها لو موجود، بدل ما نعيد اختياره عشوائي تاني وممكن يختلف
+    const speakingQ = SPEAKING_QUESTION_BANK.find(q =>
+      Object.keys(dto.answers || {}).includes(q.id)
+    ) || selectSpeakingQuestion(targetLevel, historyCount);
     const finalQuestions = [...questions, speakingQ];
 
     // تحليل التسجيل الصوتي (لو موجود) — مرة واحدة بس هنا
