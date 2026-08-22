@@ -32,6 +32,7 @@ export class AiService {
     answers: Record<string, string>,
     testType: TestType,
     targetLevel?: CefrLevel,
+    precomputedSpeakingAnalysis?: SpeakingAnalysisResult,
   ): Promise<AiEvaluationResult> {
     try {
       // 1. Calculate Multiple Choice Score directly
@@ -46,16 +47,8 @@ export class AiService {
         ? Math.round((mcqCorrectCount / mcqQuestions.length) * 100)
         : 80;
 
-      // 2. Extract Speaking Analysis if present in answers
-      let speakingAnalysis: SpeakingAnalysisResult | undefined = undefined;
-      const speakingQ = questions.find((q) => q.type === 'speaking');
-      if (speakingQ && answers[speakingQ.id]) {
-        try {
-          speakingAnalysis = JSON.parse(answers[speakingQ.id]);
-        } catch (err) {
-          this.logger.warn('Could not parse speaking analysis JSON from answers:', err);
-        }
-      }
+      // 2. التحليل الصوتي بقى بيتحسب مرة واحدة بس من TestsService قبل ما يوصل هنا
+      const speakingAnalysis: SpeakingAnalysisResult | undefined = precomputedSpeakingAnalysis;
 
       const model = this.genAI.getGenerativeModel({
         model: this.modelName,

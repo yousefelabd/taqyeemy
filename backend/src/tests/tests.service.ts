@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+﻿import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { parseBuffer } from 'music-metadata';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ResultsService } from '../results/results.service';
@@ -87,21 +87,18 @@ const SPEAKING_QUESTION_BANK = [
 // QUESTION SELECTION LOGIC
 // ─────────────────────────────────────────────────────────────────────────────
 function selectPlacementQuestions() {
-  // Placement: pick 2-3 questions per level, ordered A1 → C2 (easy to hard)
   const levels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const result: any[] = [];
   for (const lvl of levels) {
     const bank = QUESTION_BANK.filter(q => q.targetLevel === lvl);
-    // pick 2 from each: first grammar/vocab + writing if available
     const mcqs = bank.filter(q => q.type === 'multiple-choice').slice(0, 2);
     const writing = bank.filter(q => q.type === 'open-text').slice(0, 1);
     result.push(...mcqs, ...writing);
   }
-  return result; // 18 questions total (3 per level)
+  return result;
 }
 
 function selectLevelQuestions(level: CefrLevel) {
-  // Specific level: all questions for that level
   return QUESTION_BANK.filter(q => q.targetLevel === level);
 }
 
@@ -146,6 +143,7 @@ export class TestsService {
     return finalQuestions.map(({ correctAnswer, ...rest }: any) => rest);
   }
 
+  // التحليل الصوتي بقى بيحصل هنا بس، مرة واحدة، وقت إنهاء الاختبار
   async submitAndEvaluate(userId: string, token: string, dto: SubmitTestDto): Promise<TestResultResponse> {
     const targetLevel = dto.targetLevel as CefrLevel | undefined;
     const testType = dto.testType as TestType;
@@ -167,12 +165,42 @@ export class TestsService {
     const speakingQ = selectSpeakingQuestion(targetLevel, historyCount);
     const finalQuestions = [...questions, speakingQ];
 
-    // Call Gemini AI to evaluate student answers
+    // تحليل التسجيل الصوتي (لو موجود) — مرة واحدة بس هنا
+    let speakingAnalysis: any = undefined;
+    const rawSpeakingAnswer = (dto.answers || {})[speakingQ.id];
+    if (rawSpeakingAnswer) {
+      try {
+        const { audioBase64, mimeType } = JSON.parse(rawSpeakingAnswer);
+        const audioBuffer = Buffer.from(audioBase64, 'base64');
+
+        let durationSeconds = 0;
+        try {
+          const metadata = await parseBuffer(audioBuffer, mimeType);
+          durationSeconds = metadata.format.duration ?? 0;
+        } catch {
+          durationSeconds = 0;
+        }
+
+        if (durationSeconds > 90) {
+          throw new BadRequestException(
+            `مدة التسجيل الصوتي ${Math.round(durationSeconds)} ثانية، يجب أن تكون 90 ثانية كحد أقصى`,
+          );
+        }
+
+        speakingAnalysis = await this.aiService.analyzeSpeakingAudio(audioBuffer, mimeType, speakingQ.text);
+      } catch (err) {
+        if (err instanceof BadRequestException) throw err;
+        speakingAnalysis = undefined;
+      }
+    }
+
+    // Call Gemini AI to evaluate student answers (with precomputed speaking analysis)
     const aiEvaluation = await this.aiService.evaluateTest(
       finalQuestions,
       dto.answers || {},
       testType,
       targetLevel,
+      speakingAnalysis,
     );
 
     const evaluatedResult: TestResultResponse = {
@@ -191,35 +219,5 @@ export class TestsService {
     };
 
     return this.resultsService.saveResult(evaluatedResult, token);
-  }
-
-  async analyzeSpeakingAnswer(audio: Express.Multer.File, questionText: string) {
-    if (!audio || !audio.buffer) {
-      throw new BadRequestException('الملف الصوتي مطلوب');
-    }
-
-    // 1. التحقق من المدة
-    let durationSeconds = 0;
-    try {
-      const metadata = await parseBuffer(audio.buffer, audio.mimetype);
-      durationSeconds = metadata.format.duration ?? 0;
-    } catch {
-      durationSeconds = 0;
-    }
-
-    if (durationSeconds > 90) {
-      throw new BadRequestException(
-        `مدة التسجيل ${Math.round(durationSeconds)} ثانية، يجب أن تكون 90 ثانية كحد أقصى`,
-      );
-    }
-
-    // 2. تحليل الصوت بـ Gemini
-    try {
-      return await this.aiService.analyzeSpeakingAudio(audio.buffer, audio.mimetype, questionText);
-    } catch {
-      throw new InternalServerErrorException(
-        'حدث خطأ أثناء تحليل التسجيل الصوتي، حاول مرة أخرى',
-      );
-    }
   }
 }

@@ -1,9 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // زيادة الحد الأقصى لحجم الطلب عشان بيانات الصوت (base64) هتتبعت جوه /tests/submit
+  app.use(json({ limit: '15mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

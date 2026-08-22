@@ -1,5 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { Controller, Get, Post, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { TestsService } from './tests.service';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
@@ -23,22 +22,5 @@ export class TestsController {
   @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // Max 5 test submissions per 15 min (IP & Email)
   async submit(@Request() req: any, @Body() submitTestDto: SubmitTestDto) {
     return this.testsService.submitAndEvaluate(req.user.id, req.token, submitTestDto as any);
-  }
-
-  @Post('speaking/analyze')
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // Max 5 audio analysis requests per 15 min (IP & Email)
-  @UseInterceptors(
-    FileInterceptor('audio', {
-      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
-    }),
-  )
-  async analyzeSpeaking(
-    @UploadedFile() audio: Express.Multer.File,
-    @Body('questionText') questionText: string,
-  ) {
-    if (!audio) {
-      throw new BadRequestException('الملف الصوتي مطلوب');
-    }
-    return this.testsService.analyzeSpeakingAnswer(audio, questionText);
   }
 }
