@@ -21,7 +21,7 @@ async function bootstrap() {
     origin: (origin, callback) => {
       const allowed =
         !origin ||
-        origin.startsWith('http://localhost') ||
+          origin === 'http://localhost:4200' ||
         origin.startsWith('http://127.0.0.1') ||
         origin === 'https://taqyeemy11.pages.dev' ||
         origin.endsWith('.taqyeemy11.pages.dev') ||

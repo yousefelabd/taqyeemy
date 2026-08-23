@@ -14,41 +14,42 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // 5 registrations per 15 min
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async register(@Body() registerDto: RegisterDto) {
     return this.authService.register(registerDto);
   }
 
   @Post('verify-otp')
   @HttpCode(HttpStatus.OK)
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // 5 OTP verify attempts per 15 min (IP & Email)
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
     return this.authService.verifyOtp(verifyOtpDto);
   }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 }) // 3 resend requests per 15 min (IP & Email)
+  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
-  
+
   @Post('resend-otp')
   @HttpCode(HttpStatus.OK)
-  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 }) // 3 resend requests per 15 min (IP & Email)
+  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 })
   async resendOtp(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.resendOtp(forgotPasswordDto);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // 5 password resets per 15 min
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordOtpDto) {
     return this.authService.resetPassword(resetPasswordDto);
   }

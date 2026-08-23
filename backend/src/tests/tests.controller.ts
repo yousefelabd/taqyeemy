@@ -12,14 +12,15 @@ export class TestsController {
 
   @Get('questions')
   async getQuestions(
+    @Request() req: any,
     @Query('type') testType: string = 'placement',
     @Query('level') level?: string,
   ) {
-    return this.testsService.getQuestions(testType, level as CefrLevel);
+    return this.testsService.getQuestions(testType, level as CefrLevel, req.user.id, req.token);
   }
 
   @Post('submit')
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 }) // Max 5 test submissions per 15 min (IP & Email)
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async submit(@Request() req: any, @Body() submitTestDto: SubmitTestDto) {
     return this.testsService.submitAndEvaluate(req.user.id, req.token, submitTestDto as any);
   }

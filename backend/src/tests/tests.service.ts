@@ -163,9 +163,12 @@ export class TestsService {
       : selectPlacementQuestions();
 
     // نجيب السؤال الصوتي من إجابات الفرونت إند نفسها لو موجود، بدل ما نعيد اختياره عشوائي تاني وممكن يختلف
-    const speakingQ = SPEAKING_QUESTION_BANK.find(q =>
-      Object.keys(dto.answers || {}).includes(q.id)
-    ) || selectSpeakingQuestion(targetLevel, historyCount);
+   const speakingAnswer = Object.keys(dto.answers || {}).find(key =>
+  SPEAKING_QUESTION_BANK.some(q => q.id === key)
+);
+
+const speakingQ = SPEAKING_QUESTION_BANK.find(q => q.id === speakingAnswer)
+  ?? selectSpeakingQuestion(targetLevel, historyCount);
     const finalQuestions = [...questions, speakingQ];
 
     // تحليل التسجيل الصوتي (لو موجود) — مرة واحدة بس هنا

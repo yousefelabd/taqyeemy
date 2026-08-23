@@ -18,20 +18,16 @@ export class ResultsService {
   }
 
   async getHistory(): Promise<ResultSummary[]> {
-    try {
-      const data = await firstValueFrom(
-        this.http.get<TestResult[]>(`${API_URL}/history`),
-      );
-      return (data || []).map((r) => ({
-        id: r.id,
-        level: r.level,
-        score: r.score,
-        testType: r.testType,
-        completedAt: new Date(r.completedAt),
-      }));
-    } catch {
-      return [];
-    }
+    const data = await firstValueFrom(
+      this.http.get<TestResult[]>(`${API_URL}/history`),
+    );
+    return (data || []).map((r) => ({
+      id: r.id,
+      level: r.level,
+      score: r.score,
+      testType: r.testType,
+      completedAt: new Date(r.completedAt),
+    }));
   }
 
   async getResultById(id: string): Promise<TestResult | null> {
@@ -44,7 +40,7 @@ export class ResultsService {
         completedAt: new Date(result.completedAt),
       };
     } catch {
-      return this._latestResult();
+      return null;
     }
   }
 }

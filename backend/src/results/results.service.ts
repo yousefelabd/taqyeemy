@@ -90,8 +90,7 @@ export class ResultsService {
 
     if (error) {
       console.error('Error saving result to Supabase:', error);
-      // If table is not created yet, return in-memory result so app doesn't crash
-      return result;
+      throw new InternalServerErrorException('حدث خطأ أثناء حفظ النتيجة، يرجى المحاولة مرة أخرى');
     }
 
     return {

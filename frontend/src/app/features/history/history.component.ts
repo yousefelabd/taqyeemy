@@ -30,6 +30,11 @@ import { CefrLevel } from '../../core/models/test.model';
           <mat-spinner diameter="40" />
           <p>جاري تحميل سجل الاختبارات من الخادم...</p>
         </div>
+      } @else if (errorMessage()) {
+        <div class="error-state">
+          <mat-icon color="warn">error</mat-icon>
+          <p>{{ errorMessage() }}</p>
+        </div>
       } @else {
         <!-- Stats Cards -->
         <div class="stats-grid">
@@ -137,6 +142,7 @@ import { CefrLevel } from '../../core/models/test.model';
     .page-header h1 { font-size: 2rem; font-weight: 700; color: var(--mat-sys-primary); margin: 0 0 8px; }
     .page-header p { color: var(--mat-sys-on-surface-variant); }
     .loading-state { text-align: center; padding: 48px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+    .error-state { text-align: center; padding: 48px; display: flex; flex-direction: column; align-items: center; gap: 16px; color: var(--mat-sys-error); }
     .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
     @media (max-width: 600px) { .stats-grid { grid-template-columns: 1fr; } }
     .stat-card mat-card-content { text-align: center; padding: 24px 16px; }
@@ -162,6 +168,7 @@ export class HistoryComponent implements OnInit {
   history = signal<ResultSummary[]>([]);
   filteredHistory = signal<ResultSummary[]>([]);
   isLoading = signal(true);
+  errorMessage = signal<string | null>(null);
   filterLevel: CefrLevel | null = null;
   displayedColumns = ['date', 'type', 'level', 'score', 'actions'];
   cefrLevels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
@@ -171,6 +178,8 @@ export class HistoryComponent implements OnInit {
       const h = await this.resultsService.getHistory();
       this.history.set(h);
       this.filteredHistory.set(h);
+    } catch {
+      this.errorMessage.set('حدث خطأ أثناء تحميل السجل، يرجى المحاولة مرة أخرى');
     } finally {
       this.isLoading.set(false);
     }

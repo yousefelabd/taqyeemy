@@ -11,7 +11,6 @@ export class AuthService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
   async register(registerDto: RegisterDto) {
-    // 1. Sign up user via Supabase Auth (triggers email verification OTP)
     const { data, error } = await this.supabaseService.getAnonClient().auth.signUp({
       email: registerDto.email,
       password: registerDto.password,
@@ -23,7 +22,6 @@ export class AuthService {
     });
 
     if (error) {
-      // If user already exists or error
       throw new BadRequestException(error.message || 'حدث خطأ أثناء إنشاء الحساب');
     }
 
@@ -83,18 +81,14 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const { error } = await this.supabaseService.getAnonClient().auth.resetPasswordForEmail(dto.email);
-
-    if (error) {
-      // Return clear Arabic feedback
-      throw new BadRequestException(error.message || 'حدث خطأ أثناء طلب استعادة كلمة المرور');
-    }
+    await this.supabaseService.getAnonClient().auth.resetPasswordForEmail(dto.email);
 
     return {
       message: 'تم إرسال رمز استعادة كلمة المرور إلى بريدك الإلكتروني بنجاح',
       email: dto.email,
     };
   }
+
   async resendOtp(dto: ForgotPasswordDto) {
     const { error } = await this.supabaseService.getAnonClient().auth.resend({
       type: 'signup',
@@ -110,8 +104,8 @@ export class AuthService {
       email: dto.email,
     };
   }
+
   async resetPassword(dto: ResetPasswordOtpDto) {
-    // 1. Verify recovery OTP
     const { data: verifyData, error: verifyError } = await this.supabaseService
       .getAnonClient()
       .auth.verifyOtp({
@@ -124,7 +118,6 @@ export class AuthService {
       throw new BadRequestException('رمز التحقق منتهي الصلاحية أو غير صحيح');
     }
 
-    // 2. Update password for verified user via admin client
     const { error: updateError } = await this.supabaseService
       .getAdminClient()
       .auth.admin.updateUserById(verifyData.user.id, {

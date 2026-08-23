@@ -1,4 +1,4 @@
 ﻿export const environment = {
-  production: true,
- apiUrl: 'https://taqyeemy-backend.vercel.app'
+  production: false,
+  apiUrl: 'http://127.0.0.1:3000'
 };
