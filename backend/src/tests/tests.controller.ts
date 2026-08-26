@@ -21,13 +21,13 @@ export class TestsController {
   }
 
   @Post('submit')
-  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
+  @RateLimit({ maxAttempts: 20, ttlSeconds: 900 })
   async submit(@Request() req: any, @Body() submitTestDto: SubmitTestDto) {
     return this.testsService.submitAndEvaluate(req.user.id, req.token, submitTestDto as any);
   }
 
   @Post('speaking/analyze')
-  @RateLimit({ maxAttempts: 10, ttlSeconds: 900 })
+  @RateLimit({ maxAttempts: 20, ttlSeconds: 900 })
   @UseInterceptors(
     FileInterceptor('audio', {
       limits: { fileSize: 10 * 1024 * 1024 }, // 10MB

@@ -41,6 +41,7 @@ export class CompositeRateLimiterGuard implements CanActivate {
     if (!options) return true;
 
     const request = context.switchToHttp().getRequest();
+    const route = request.route?.path || request.originalUrl?.split('?')[0] || context.getHandler().name;
 
     // Extract IP
     const ip =
@@ -52,12 +53,12 @@ export class CompositeRateLimiterGuard implements CanActivate {
     // Extract Email (if present in body)
     const email = request.body?.email ? request.body.email.toString().toLowerCase().trim() : null;
 
-    // 1. Check IP bucket atomically
-    await this.checkAtomicRateLimit(`ip:${ip}`, options.maxAttempts, options.ttlSeconds, this.ipBuckets);
+    // 1. Check IP bucket atomically per route
+    await this.checkAtomicRateLimit(`ip:${ip}:${route}`, options.maxAttempts, options.ttlSeconds, this.ipBuckets);
 
-    // 2. Check Email bucket independently (if email present)
+    // 2. Check Email bucket independently per route (if email present)
     if (email) {
-      await this.checkAtomicRateLimit(`email:${email}`, options.maxAttempts, options.ttlSeconds, this.emailBuckets);
+      await this.checkAtomicRateLimit(`email:${email}:${route}`, options.maxAttempts, options.ttlSeconds, this.emailBuckets);
     }
 
     return true;
