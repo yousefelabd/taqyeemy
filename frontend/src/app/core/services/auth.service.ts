@@ -1,4 +1,4 @@
-﻿import { Injectable, signal, computed, inject } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
@@ -131,9 +131,15 @@ export class AuthService {
     }
   }
 
-  async updatePassword(currentPassword: string, newPassword: string): Promise<void> {
+  async requestPasswordChangeOtp(): Promise<{ email: string }> {
+    return firstValueFrom(
+      this.http.post<{ message: string; email: string }>(`${API_URL}/request-password-change-otp`, {}),
+    );
+  }
+
+  async updatePassword(otp: string, newPassword: string): Promise<void> {
     await firstValueFrom(
-      this.http.patch<{ message: string }>(`${API_URL}/update-password`, { currentPassword, newPassword }),
+      this.http.patch<{ message: string }>(`${API_URL}/update-password`, { otp, newPassword }),
     );
   }
 

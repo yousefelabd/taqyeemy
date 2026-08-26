@@ -9,9 +9,9 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
-import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatStepperModule } from '@angular/material/stepper';
 import { AuthService } from '../../core/services/auth.service';
 import { ThemeService } from '../../core/services/theme.service';
 
@@ -22,8 +22,8 @@ import { ThemeService } from '../../core/services/theme.service';
     CommonModule, FormsModule,
     MatCardModule, MatButtonModule, MatIconModule,
     MatFormFieldModule, MatInputModule, MatDividerModule,
-    MatSlideToggleModule, MatDialogModule, MatSnackBarModule,
-    MatProgressSpinnerModule,
+    MatSlideToggleModule, MatSnackBarModule,
+    MatProgressSpinnerModule, MatStepperModule,
   ],
   template: `
     <div class="page-container settings-page">
@@ -61,29 +61,56 @@ import { ThemeService } from '../../core/services/theme.service';
         <mat-card-header>
           <mat-icon mat-card-avatar>lock</mat-icon>
           <mat-card-title>تغيير كلمة المرور</mat-card-title>
-          <mat-card-subtitle>يجب إدخال كلمة المرور الحالية أولاً</mat-card-subtitle>
+          <mat-card-subtitle>سيتم إرسال كود تحقق على بريدك الإلكتروني</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>كلمة المرور الحالية</mat-label>
-            <input matInput [type]="showCurrent ? 'text' : 'password'" [(ngModel)]="currentPw" />
-            <button matSuffix mat-icon-button (click)="showCurrent = !showCurrent">
-              <mat-icon>{{ showCurrent ? 'visibility_off' : 'visibility' }}</mat-icon>
+
+          <!-- الخطوة 1: إرسال الكود -->
+          <div *ngIf="pwStep === 1" class="step-section">
+            <p class="step-hint">اضغط على الزرار وهنبعتلك كود تحقق على إيميلك عشان تقدر تغير كلمة المرور.</p>
+            <button mat-raised-button color="primary"
+              [disabled]="otpLoading()"
+              (click)="sendOtp()">
+              <mat-spinner *ngIf="otpLoading()" diameter="18" class="btn-spinner"></mat-spinner>
+              <span *ngIf="!otpLoading()">
+                <mat-icon>send</mat-icon>
+                إرسال كود التحقق
+              </span>
             </button>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="full-width">
-            <mat-label>كلمة المرور الجديدة</mat-label>
-            <input matInput [type]="showNew ? 'text' : 'password'" [(ngModel)]="newPw" />
-            <button matSuffix mat-icon-button (click)="showNew = !showNew">
-              <mat-icon>{{ showNew ? 'visibility_off' : 'visibility' }}</mat-icon>
-            </button>
-            <mat-hint>6 أحرف على الأقل</mat-hint>
-          </mat-form-field>
-          <p *ngIf="pwError" class="field-error">⚠️ {{ pwError }}</p>
+          </div>
+
+          <!-- الخطوة 2: إدخال الكود وكلمة المرور الجديدة -->
+          <div *ngIf="pwStep === 2" class="step-section">
+            <p class="step-hint success-hint">✅ تم إرسال الكود على بريدك الإلكتروني — راجع الإيميل.</p>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>كود التحقق (6 أرقام)</mat-label>
+              <input matInput [(ngModel)]="otpCode" maxlength="6" inputmode="numeric" placeholder="123456" />
+              <mat-icon matSuffix>pin</mat-icon>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>كلمة المرور الجديدة</mat-label>
+              <input matInput [type]="showNew ? 'text' : 'password'" [(ngModel)]="newPw" />
+              <button matSuffix mat-icon-button (click)="showNew = !showNew">
+                <mat-icon>{{ showNew ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint>6 أحرف على الأقل</mat-hint>
+            </mat-form-field>
+            <p *ngIf="pwError" class="field-error">⚠️ {{ pwError }}</p>
+          </div>
+
+          <!-- الخطوة 3: تم التغيير -->
+          <div *ngIf="pwStep === 3" class="step-section success-section">
+            <mat-icon class="success-icon">check_circle</mat-icon>
+            <p>تم تغيير كلمة المرور بنجاح! 🎉</p>
+          </div>
+
         </mat-card-content>
-        <mat-card-actions>
+        <mat-card-actions *ngIf="pwStep === 2">
+          <button mat-button (click)="pwStep = 1; otpCode = ''; newPw = ''; pwError = ''">
+            إعادة الإرسال
+          </button>
           <button mat-raised-button color="primary"
-            [disabled]="!currentPw || newPw.length < 6 || pwLoading()"
+            [disabled]="otpCode.length !== 6 || newPw.length < 6 || pwLoading()"
             (click)="savePassword()">
             <mat-spinner *ngIf="pwLoading()" diameter="18" class="btn-spinner"></mat-spinner>
             <span *ngIf="!pwLoading()">تغيير كلمة المرور</span>
@@ -142,9 +169,7 @@ import { ThemeService } from '../../core/services/theme.service';
             حذف حسابي
           </button>
           <ng-container *ngIf="showDeleteConfirm">
-            <button mat-button (click)="showDeleteConfirm = false; deleteConfirmText = ''">
-              إلغاء
-            </button>
+            <button mat-button (click)="showDeleteConfirm = false; deleteConfirmText = ''">إلغاء</button>
             <button mat-raised-button color="warn"
               [disabled]="deleteConfirmText !== 'حذف حسابي' || deleteLoading()"
               (click)="confirmDelete()">
@@ -162,11 +187,16 @@ import { ThemeService } from '../../core/services/theme.service';
     .settings-card { margin-bottom: 20px; border-radius: 16px !important; }
     .full-width { width: 100%; margin-top: 12px; }
     mat-card-content { padding-top: 8px !important; }
-    mat-card-actions { padding: 8px 16px 16px !important; }
+    mat-card-actions { padding: 8px 16px 16px !important; gap: 8px; }
     .btn-spinner { display: inline-block; margin-left: 4px; }
     .field-error { color: var(--mat-sys-error); font-size: 13px; margin-top: -8px; }
     .theme-toggle-row { display: flex; align-items: center; gap: 16px; padding: 8px 0; }
     .theme-label { display: flex; align-items: center; gap: 4px; font-weight: 600; }
+    .step-section { padding: 8px 0; }
+    .step-hint { color: var(--mat-sys-on-surface-variant); font-size: 14px; margin-bottom: 16px; }
+    .success-hint { color: #2e7d32; font-weight: 600; }
+    .success-section { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 0; }
+    .success-icon { font-size: 48px; width: 48px; height: 48px; color: #2e7d32; }
     .danger-card { border: 2px solid var(--mat-sys-error-container) !important; }
     .danger-icon { color: var(--mat-sys-error) !important; }
     .danger-title { color: var(--mat-sys-error) !important; }
@@ -175,29 +205,29 @@ import { ThemeService } from '../../core/services/theme.service';
   `],
 })
 export class SettingsComponent {
-  private authService  = inject(AuthService);
+  private authService   = inject(AuthService);
   readonly themeService = inject(ThemeService);
-  private snackBar     = inject(MatSnackBar);
-  private router       = inject(Router);
+  private snackBar      = inject(MatSnackBar);
 
   currentUser = this.authService.currentUser;
 
   // Name
-  newName = '';
-  nameLoading  = signal(false);
+  newName     = '';
+  nameLoading = signal(false);
 
-  // Password
-  currentPw = '';
+  // Password OTP flow
+  pwStep    = 1; // 1=send, 2=verify, 3=done
+  otpCode   = '';
   newPw     = '';
   pwError   = '';
-  pwLoading = signal(false);
-  showCurrent = false;
-  showNew     = false;
+  otpLoading = signal(false);
+  pwLoading  = signal(false);
+  showNew    = false;
 
   // Delete
-  showDeleteConfirm   = false;
-  deleteConfirmText   = '';
-  deleteLoading = signal(false);
+  showDeleteConfirm = false;
+  deleteConfirmText = '';
+  deleteLoading     = signal(false);
 
   async saveName() {
     const name = this.newName.trim();
@@ -215,17 +245,31 @@ export class SettingsComponent {
     }
   }
 
+  async sendOtp() {
+    this.otpLoading.set(true);
+    try {
+      await this.authService.requestPasswordChangeOtp();
+      this.pwStep = 2;
+    } catch (err: any) {
+      const msg = err?.error?.message || 'حدث خطأ أثناء إرسال الكود';
+      this.snackBar.open(Array.isArray(msg) ? msg[0] : msg, 'إغلاق', { duration: 4000 });
+    } finally {
+      this.otpLoading.set(false);
+    }
+  }
+
   async savePassword() {
     this.pwError = '';
     if (this.newPw.length < 6) { this.pwError = 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل'; return; }
+    if (this.otpCode.length !== 6) { this.pwError = 'كود التحقق يجب أن يكون 6 أرقام'; return; }
     this.pwLoading.set(true);
     try {
-      await this.authService.updatePassword(this.currentPw, this.newPw);
-      this.snackBar.open('تم تغيير كلمة المرور بنجاح ✅', 'إغلاق', { duration: 3000 });
-      this.currentPw = '';
-      this.newPw     = '';
+      await this.authService.updatePassword(this.otpCode, this.newPw);
+      this.pwStep = 3;
+      this.otpCode = '';
+      this.newPw   = '';
     } catch (err: any) {
-      const msg = err?.error?.message || 'كلمة المرور الحالية غير صحيحة';
+      const msg = err?.error?.message || 'كود التحقق غير صحيح أو منتهي الصلاحية';
       this.pwError = Array.isArray(msg) ? msg[0] : msg;
     } finally {
       this.pwLoading.set(false);
@@ -237,7 +281,6 @@ export class SettingsComponent {
     this.deleteLoading.set(true);
     try {
       await this.authService.deleteAccount();
-      // logout already called inside deleteAccount
     } catch (err: any) {
       const msg = err?.error?.message || 'حدث خطأ أثناء حذف الحساب';
       this.snackBar.open(Array.isArray(msg) ? msg[0] : msg, 'إغلاق', { duration: 4000 });

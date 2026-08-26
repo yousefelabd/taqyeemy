@@ -143,15 +143,30 @@ export class AuthService {
     return { message: 'تم تحديث الاسم بنجاح', fullName };
   }
 
-  async updatePassword(userId: string, token: string, currentPassword: string, newPassword: string) {
+  async requestPasswordChangeOtp(userId: string) {
     const { data: userData } = await this.supabaseService.getAdminClient().auth.admin.getUserById(userId);
     if (!userData?.user?.email) throw new BadRequestException('لم يتم التعرف على المستخدم');
 
-    const { error: signInError } = await this.supabaseService.getAnonClient().auth.signInWithPassword({
-      email: userData.user.email,
-      password: currentPassword,
-    });
-    if (signInError) throw new BadRequestException('كلمة المرور الحالية غير صحيحة');
+    await this.supabaseService.getAnonClient().auth.resetPasswordForEmail(userData.user.email);
+    return { message: 'تم إرسال كود التحقق إلى بريدك الإلكتروني', email: userData.user.email };
+  }
+
+  async updatePassword(userId: string, otp: string, newPassword: string) {
+    const { data: userData } = await this.supabaseService.getAdminClient().auth.admin.getUserById(userId);
+    if (!userData?.user?.email) throw new BadRequestException('لم يتم التعرف على المستخدم');
+
+    // التحقق من الـ OTP أولاً
+    const { data: verifyData, error: verifyError } = await this.supabaseService
+      .getAnonClient()
+      .auth.verifyOtp({
+        email: userData.user.email,
+        token: otp,
+        type: 'recovery',
+      });
+
+    if (verifyError || !verifyData.user) {
+      throw new BadRequestException('كود التحقق غير صحيح أو منتهي الصلاحية');
+    }
 
     const { error } = await this.supabaseService.getAdminClient().auth.admin.updateUserById(userId, {
       password: newPassword,

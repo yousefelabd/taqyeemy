@@ -65,12 +65,20 @@ export class AuthController {
     return this.authService.updateName(req.user.id, dto.fullName);
   }
 
+  @Post('request-password-change-otp')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 })
+  async requestPasswordChangeOtp(@Request() req: any) {
+    return this.authService.requestPasswordChangeOtp(req.user.id);
+  }
+
   @Patch('update-password')
   @UseGuards(AuthGuard)
   @HttpCode(HttpStatus.OK)
   @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async updatePassword(@Request() req: any, @Body() dto: UpdatePasswordDto) {
-    return this.authService.updatePassword(req.user.id, req.token, dto.currentPassword, dto.newPassword);
+    return this.authService.updatePassword(req.user.id, dto.otp, dto.newPassword);
   }
 
   @Delete('delete-account')
