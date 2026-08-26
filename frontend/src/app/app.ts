@@ -1,7 +1,8 @@
-﻿import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { FooterComponent } from './shared/components/footer/footer.component';
+import { ThemeService } from './core/services/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -25,4 +26,9 @@ import { FooterComponent } from './shared/components/footer/footer.component';
     }
   `]
 })
-export class App {}
+export class App {
+  // حقن الـ service هنا بيشغّله فوراً عند بدء التطبيق
+  // ويطبق الـ theme المحفوظ في localStorage تلقائياً
+  readonly themeService = inject(ThemeService);
+}
+

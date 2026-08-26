@@ -16,14 +16,30 @@ html {
   );
 }
 
+// ─── Dark Theme Override ───────────────────────────────────────────────────
+html.dark-theme {
+  color-scheme: dark;
+  @include mat.theme(
+    (
+      color: (
+        primary: mat.$violet-palette,
+        tertiary: mat.$cyan-palette,
+        theme-type: dark,
+      ),
+      typography: 'Cairo',
+      density: 0,
+    )
+  );
+}
+
 body {
-  color-scheme: light;
   background-color: var(--mat-sys-surface);
   color: var(--mat-sys-on-surface);
   font-family: 'Cairo', 'Roboto', sans-serif;
   margin: 0;
   height: 100%;
   direction: rtl;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 // Protect mat-icon font — must stay 'Material Icons' for ligature rendering.
@@ -43,6 +59,7 @@ mat-icon,
   padding: 24px 16px;
 }
 
+// ─── Level Badges ─────────────────────────────────────────────────────────
 .level-badge {
   display: inline-flex;
   align-items: center;
@@ -59,3 +76,14 @@ mat-icon,
   &.level-c1 { background: #fce4ec; color: #c62828; }
   &.level-c2 { background: #ede7f6; color: #4527a0; }
 }
+
+// Dark mode level badge overrides
+html.dark-theme .level-badge {
+  &.level-a1 { background: #1b5e20; color: #a5d6a7; }
+  &.level-a2 { background: #33691e; color: #c5e1a5; }
+  &.level-b1 { background: #f57f17; color: #fff9c4; }
+  &.level-b2 { background: #bf360c; color: #ffccbc; }
+  &.level-c1 { background: #880e4f; color: #f48fb1; }
+  &.level-c2 { background: #311b92; color: #ce93d8; }
+}
+
