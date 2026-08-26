@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { json } from 'express';
 import { AppModule } from '../src/app.module';
 
 let app: any;
@@ -29,6 +30,7 @@ export default async function handler(req: any, res: any) {
 
   if (!app) {
     app = await NestFactory.create(AppModule);
+    app.use(json({ limit: '15mb' }));
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,

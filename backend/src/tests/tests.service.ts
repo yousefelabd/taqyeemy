@@ -1,4 +1,4 @@
-﻿import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { parseBuffer } from 'music-metadata';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ResultsService } from '../results/results.service';
@@ -176,26 +176,17 @@ const speakingQ = SPEAKING_QUESTION_BANK.find(q => q.id === speakingAnswer)
     const rawSpeakingAnswer = (dto.answers || {})[speakingQ.id];
     if (rawSpeakingAnswer) {
       try {
-        const { audioBase64, mimeType } = JSON.parse(rawSpeakingAnswer);
-        const audioBuffer = Buffer.from(audioBase64, 'base64');
-
-        let durationSeconds = 0;
-        try {
-          const metadata = await parseBuffer(audioBuffer, mimeType);
-          durationSeconds = metadata.format.duration ?? 0;
-        } catch {
-          durationSeconds = 0;
-        }
-
-        if (durationSeconds > 90) {
-          throw new BadRequestException(
-            `مدة التسجيل الصوتي ${Math.round(durationSeconds)} ثانية، يجب أن تكون 90 ثانية كحد أقصى`,
+        const parsedAnswer = JSON.parse(rawSpeakingAnswer);
+        if (parsedAnswer && parsedAnswer.audioBase64) {
+          const audioBuffer = Buffer.from(parsedAnswer.audioBase64, 'base64');
+          speakingAnalysis = await this.aiService.analyzeSpeakingAudio(
+            audioBuffer,
+            parsedAnswer.mimeType || 'audio/m4a',
+            speakingQ.text,
           );
         }
-
-        speakingAnalysis = await this.aiService.analyzeSpeakingAudio(audioBuffer, mimeType, speakingQ.text);
       } catch (err) {
-        if (err instanceof BadRequestException) throw err;
+        console.error('Error analyzing speaking audio during test evaluation:', err);
         speakingAnalysis = undefined;
       }
     }
