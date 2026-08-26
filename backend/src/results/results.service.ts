@@ -130,14 +130,14 @@ export class ResultsService {
       userId: data.user_id,
       level: data.level as CefrLevel,
       score: data.score,
-      multipleChoiceScore: data.multiple_choice_score,
-      writingScore: data.writing_score,
-      speakingAnalysis: data.speaking_analysis,
-      strengths: data.strengths || [],
-      weaknesses: data.weaknesses || [],
-      testType: data.test_type as TestType,
-      targetLevel: data.target_level as CefrLevel | undefined,
-      completedAt: data.completed_at,
+      multipleChoiceScore: data.multiple_choice_score ?? result.multipleChoiceScore,
+      writingScore: data.writing_score ?? result.writingScore,
+      speakingAnalysis: data.speaking_analysis ?? result.speakingAnalysis,
+      strengths: (data.strengths && data.strengths.length > 0) ? data.strengths : (result.strengths || []),
+      weaknesses: (data.weaknesses && data.weaknesses.length > 0) ? data.weaknesses : (result.weaknesses || []),
+      testType: (data.test_type as TestType) || result.testType,
+      targetLevel: (data.target_level as CefrLevel | undefined) || result.targetLevel,
+      completedAt: data.completed_at || result.completedAt,
     };
   }
 }

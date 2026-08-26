@@ -31,6 +31,10 @@ export class ResultsService {
   }
 
   async getResultById(id: string): Promise<TestResult | null> {
+    const cached = this._latestResult();
+    if (cached && cached.id === id) {
+      return cached;
+    }
     try {
       const result = await firstValueFrom(
         this.http.get<TestResult>(`${API_URL}/${id}`),
@@ -40,7 +44,7 @@ export class ResultsService {
         completedAt: new Date(result.completedAt),
       };
     } catch {
-      return null;
+      return cached || null;
     }
   }
 }

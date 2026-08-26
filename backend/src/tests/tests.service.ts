@@ -171,26 +171,27 @@ const speakingQ = SPEAKING_QUESTION_BANK.find(q => q.id === speakingAnswer)
   ?? selectSpeakingQuestion(targetLevel, historyCount);
     const finalQuestions = [...questions, speakingQ];
 
-    // تحليل التسجيل الصوتي (لو موجود)
+    // البحث عن نتيجة التحليل الصوتي في إجابات الأسئلة
     let speakingAnalysis: any = undefined;
-    const rawSpeakingAnswer = (dto.answers || {})[speakingQ.id];
-    if (rawSpeakingAnswer) {
-      try {
-        const parsed = JSON.parse(rawSpeakingAnswer);
-        if (parsed && (parsed.grammarScore !== undefined || parsed.transcript !== undefined)) {
-          // النتيجة متحـللة ومحفوظة جاهزة
-          speakingAnalysis = parsed;
-        } else if (parsed && parsed.audioBase64) {
-          const audioBuffer = Buffer.from(parsed.audioBase64, 'base64');
-          speakingAnalysis = await this.aiService.analyzeSpeakingAudio(
-            audioBuffer,
-            parsed.mimeType || 'audio/m4a',
-            speakingQ.text,
-          );
+    for (const [_, ans] of Object.entries(dto.answers || {})) {
+      if (typeof ans === 'string' && (ans.startsWith('{') || ans.includes('transcript') || ans.includes('grammarScore') || ans.includes('audioBase64'))) {
+        try {
+          const parsed = JSON.parse(ans);
+          if (parsed && (parsed.grammarScore !== undefined || parsed.transcript !== undefined)) {
+            speakingAnalysis = parsed;
+            break;
+          } else if (parsed && parsed.audioBase64) {
+            const audioBuffer = Buffer.from(parsed.audioBase64, 'base64');
+            speakingAnalysis = await this.aiService.analyzeSpeakingAudio(
+              audioBuffer,
+              parsed.mimeType || 'audio/m4a',
+              speakingQ.text,
+            );
+            break;
+          }
+        } catch {
+          // ignore JSON parse error
         }
-      } catch (err) {
-        console.error('Error parsing speaking answer during test evaluation:', err);
-        speakingAnalysis = undefined;
       }
     }
 
