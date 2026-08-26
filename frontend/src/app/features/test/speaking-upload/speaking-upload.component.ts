@@ -1,14 +1,12 @@
 import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
-
-export interface SpeakingRecordingData {
-  audioBase64: string;
-  mimeType: string;
-}
+import { environment } from '../../../../environments/environment';
+import { SpeakingAnalysisResult } from '../../../core/models/result.model';
 
 @Component({
   selector: 'app-speaking-upload',
@@ -28,18 +26,22 @@ export interface SpeakingRecordingData {
         style="display: none;" />
 
       <p *ngIf="errorMessage" class="error-message">⚠️ {{ errorMessage }}</p>
-      <p *ngIf="selectedFile && !errorMessage" class="file-selected">
+      <p *ngIf="selectedFile && !errorMessage && !isSubmitted" class="file-selected">
         ✅ تم اختيار: {{ selectedFile.name }}
       </p>
 
+      <p *ngIf="isSubmitted" class="file-success">
+        ✅ تم تأكيد وتسجيل الإجابة الصوتية بنجاح!
+      </p>
+
       <button
-        *ngIf="selectedFile && !errorMessage"
+        *ngIf="selectedFile && !errorMessage && !isSubmitted"
         mat-raised-button
         color="primary"
         [disabled]="isLoading"
         (click)="confirmRecording()">
         <mat-spinner *ngIf="isLoading" diameter="20"></mat-spinner>
-        <span *ngIf="!isLoading">تأكيد والانتقال للسؤال التالي</span>
+        <span *ngIf="!isLoading">تأكيد وإرسال الإجابة الصوتية</span>
       </button>
     </div>
   `,
@@ -48,17 +50,20 @@ export interface SpeakingRecordingData {
     .upload-label { display: flex; align-items: center; gap: 8px; padding: 12px 24px; background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); border-radius: 24px; cursor: pointer; font-weight: 600; }
     .error-message { color: #c62828; font-weight: 600; }
     .file-selected { color: #2e7d32; font-weight: 600; }
+    .file-success { color: #2e7d32; font-weight: 700; font-size: 15px; margin: 8px 0; }
   `],
 })
 export class SpeakingUploadComponent {
   @Input() questionText = '';
-  @Output() analyzed = new EventEmitter<SpeakingRecordingData>();
+  @Output() analyzed = new EventEmitter<SpeakingAnalysisResult>();
 
+  private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
 
   selectedFile: File | null = null;
   errorMessage: string | null = null;
   isLoading = false;
+  isSubmitted = false;
   readonly MAX_DURATION_SECONDS = 90;
 
   async onFileSelected(event: Event) {
@@ -68,6 +73,7 @@ export class SpeakingUploadComponent {
 
     this.errorMessage = null;
     this.selectedFile = null;
+    this.isSubmitted = false;
     this.cdr.markForCheck();
 
     try {
@@ -99,36 +105,31 @@ export class SpeakingUploadComponent {
     });
   }
 
-  // بيقرأ الملف ويحوله base64 بس — مفيش أي تحليل هنا خالص
   async confirmRecording() {
     if (!this.selectedFile || this.isLoading) return;
     this.isLoading = true;
     this.errorMessage = null;
     this.cdr.markForCheck();
 
+    const formData = new FormData();
+    formData.append('audio', this.selectedFile);
+    formData.append('questionText', this.questionText);
+
     try {
-      const audioBase64 = await this.fileToBase64(this.selectedFile);
-      this.analyzed.emit({
-        audioBase64,
-        mimeType: this.selectedFile.type || 'audio/mp3',
-      });
-    } catch {
-      this.errorMessage = 'حدث خطأ أثناء قراءة الملف الصوتي';
+      const res = await this.http
+        .post<SpeakingAnalysisResult>(`${environment.apiUrl}/tests/speaking/analyze`, formData)
+        .toPromise();
+
+      if (res) {
+        this.isSubmitted = true;
+        this.analyzed.emit(res);
+      }
+    } catch (err: any) {
+      const msg = err?.error?.message || 'حدث خطأ أثناء تحليل الملف الصوتي، يرجى المحاولة مرة أخرى.';
+      this.errorMessage = Array.isArray(msg) ? msg[0] : msg;
     } finally {
       this.isLoading = false;
       this.cdr.markForCheck();
     }
-  }
-
-  private fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1] || '');
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
   }
 }

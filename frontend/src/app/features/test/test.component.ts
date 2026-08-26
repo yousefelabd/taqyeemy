@@ -11,7 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TestService } from '../../core/services/test.service';
 import { ResultsService } from '../../core/services/results.service';
 import { Question } from '../../core/models/test.model';
-import { SpeakingUploadComponent, SpeakingRecordingData } from './speaking-upload/speaking-upload.component';
+import { SpeakingUploadComponent } from './speaking-upload/speaking-upload.component';
 import { SpeakingAnalysisResult } from '../../core/models/result.model';
 
 @Component({
@@ -187,11 +187,11 @@ export class TestComponent implements OnInit {
     if (q) this.testService.submitAnswer(q.id, answer);
   }
 
-onSpeakingAnalyzed(result: SpeakingRecordingData): void {
-      const jsonString = JSON.stringify(result);
+  onSpeakingAnalyzed(result: SpeakingAnalysisResult): void {
+    const jsonString = JSON.stringify(result);
     this.selectAnswer(jsonString);
     if (!this.isLastQuestion()) {
-      setTimeout(() => this.nextQuestion(), 1200);
+      setTimeout(() => this.nextQuestion(), 800);
     }
   }
 

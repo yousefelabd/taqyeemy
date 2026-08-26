@@ -171,22 +171,25 @@ const speakingQ = SPEAKING_QUESTION_BANK.find(q => q.id === speakingAnswer)
   ?? selectSpeakingQuestion(targetLevel, historyCount);
     const finalQuestions = [...questions, speakingQ];
 
-    // تحليل التسجيل الصوتي (لو موجود) — مرة واحدة بس هنا
+    // تحليل التسجيل الصوتي (لو موجود)
     let speakingAnalysis: any = undefined;
     const rawSpeakingAnswer = (dto.answers || {})[speakingQ.id];
     if (rawSpeakingAnswer) {
       try {
-        const parsedAnswer = JSON.parse(rawSpeakingAnswer);
-        if (parsedAnswer && parsedAnswer.audioBase64) {
-          const audioBuffer = Buffer.from(parsedAnswer.audioBase64, 'base64');
+        const parsed = JSON.parse(rawSpeakingAnswer);
+        if (parsed && (parsed.grammarScore !== undefined || parsed.transcript !== undefined)) {
+          // النتيجة متحـللة ومحفوظة جاهزة
+          speakingAnalysis = parsed;
+        } else if (parsed && parsed.audioBase64) {
+          const audioBuffer = Buffer.from(parsed.audioBase64, 'base64');
           speakingAnalysis = await this.aiService.analyzeSpeakingAudio(
             audioBuffer,
-            parsedAnswer.mimeType || 'audio/m4a',
+            parsed.mimeType || 'audio/m4a',
             speakingQ.text,
           );
         }
       } catch (err) {
-        console.error('Error analyzing speaking audio during test evaluation:', err);
+        console.error('Error parsing speaking answer during test evaluation:', err);
         speakingAnalysis = undefined;
       }
     }
@@ -216,5 +219,16 @@ const speakingQ = SPEAKING_QUESTION_BANK.find(q => q.id === speakingAnswer)
     };
 
     return this.resultsService.saveResult(evaluatedResult, token);
+  }
+
+  async analyzeSpeakingAnswer(file: Express.Multer.File, questionText: string) {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('الملف الصوتي غير صالح');
+    }
+    return this.aiService.analyzeSpeakingAudio(
+      file.buffer,
+      file.mimetype || 'audio/m4a',
+      questionText,
+    );
   }
 }
