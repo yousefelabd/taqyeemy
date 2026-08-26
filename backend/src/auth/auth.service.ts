@@ -132,4 +132,37 @@ export class AuthService {
       message: 'تم تحديث كلمة المرور بنجاح. يمكنك الآن تسجيل الدخول',
     };
   }
+
+  async updateName(userId: string, fullName: string) {
+    const { error } = await this.supabaseService
+      .getAdminClient()
+      .auth.admin.updateUserById(userId, {
+        user_metadata: { full_name: fullName },
+      });
+    if (error) throw new BadRequestException('حدث خطأ أثناء تحديث الاسم');
+    return { message: 'تم تحديث الاسم بنجاح', fullName };
+  }
+
+  async updatePassword(userId: string, token: string, currentPassword: string, newPassword: string) {
+    const { data: userData } = await this.supabaseService.getAdminClient().auth.admin.getUserById(userId);
+    if (!userData?.user?.email) throw new BadRequestException('لم يتم التعرف على المستخدم');
+
+    const { error: signInError } = await this.supabaseService.getAnonClient().auth.signInWithPassword({
+      email: userData.user.email,
+      password: currentPassword,
+    });
+    if (signInError) throw new BadRequestException('كلمة المرور الحالية غير صحيحة');
+
+    const { error } = await this.supabaseService.getAdminClient().auth.admin.updateUserById(userId, {
+      password: newPassword,
+    });
+    if (error) throw new BadRequestException('حدث خطأ أثناء تحديث كلمة المرور');
+    return { message: 'تم تحديث كلمة المرور بنجاح' };
+  }
+
+  async deleteAccount(userId: string) {
+    const { error } = await this.supabaseService.getAdminClient().auth.admin.deleteUser(userId);
+    if (error) throw new BadRequestException('حدث خطأ أثناء حذف الحساب');
+    return { message: 'تم حذف الحساب بنجاح' };
+  }
 }

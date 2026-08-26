@@ -1,4 +1,4 @@
-﻿import { Component, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatButtonModule } from '@angular/material/button';
@@ -36,6 +36,10 @@ import { AuthService } from '../../../core/services/auth.service';
             <span>{{ currentUser()?.fullName }}</span>
           </div>
           <mat-divider />
+          <a mat-menu-item routerLink="/settings">
+            <mat-icon>settings</mat-icon>
+            الإعدادات
+          </a>
           <button mat-menu-item (click)="logout()">
             <mat-icon>logout</mat-icon>
             تسجيل الخروج
@@ -68,3 +72,4 @@ export class NavbarComponent {
     this.authService.logout();
   }
 }
+

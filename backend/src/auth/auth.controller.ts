@@ -1,11 +1,14 @@
-﻿import { Controller, Post, Body, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Delete, Body, HttpCode, HttpStatus, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordOtpDto } from './dto/reset-password-otp.dto';
+import { UpdateNameDto } from './dto/update-name.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
 import { CompositeRateLimiterGuard, RateLimit } from '../common/guards/rate-limiter.guard';
+import { AuthGuard } from '../common/guards/auth.guard';
 
 @Controller('auth')
 @UseGuards(CompositeRateLimiterGuard)
@@ -52,5 +55,29 @@ export class AuthController {
   @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
   async resetPassword(@Body() resetPasswordDto: ResetPasswordOtpDto) {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Patch('update-name')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 10, ttlSeconds: 900 })
+  async updateName(@Request() req: any, @Body() dto: UpdateNameDto) {
+    return this.authService.updateName(req.user.id, dto.fullName);
+  }
+
+  @Patch('update-password')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 5, ttlSeconds: 900 })
+  async updatePassword(@Request() req: any, @Body() dto: UpdatePasswordDto) {
+    return this.authService.updatePassword(req.user.id, req.token, dto.currentPassword, dto.newPassword);
+  }
+
+  @Delete('delete-account')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @RateLimit({ maxAttempts: 3, ttlSeconds: 900 })
+  async deleteAccount(@Request() req: any) {
+    return this.authService.deleteAccount(req.user.id);
   }
 }
