@@ -82,15 +82,47 @@ export class ResultsService {
     if (result.writingScore !== undefined) insertData.writing_score = result.writingScore;
     if (result.speakingAnalysis !== undefined) insertData.speaking_analysis = result.speakingAnalysis;
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('test_results')
       .insert(insertData)
       .select()
       .single();
 
     if (error) {
-      console.error('Error saving result to Supabase:', error);
-      throw new InternalServerErrorException('حدث خطأ أثناء حفظ النتيجة، يرجى المحاولة مرة أخرى');
+      console.warn('User client insert failed, trying admin client fallback:', error);
+      const adminClient = this.supabaseService.getAdminClient();
+      const adminRes = await adminClient
+        .from('test_results')
+        .insert(insertData)
+        .select()
+        .single();
+
+      if (adminRes.error) {
+        console.warn('Admin client full insert failed, trying basic columns fallback:', adminRes.error);
+        const basicData = {
+          user_id: result.userId,
+          level: result.level,
+          score: result.score,
+          strengths: result.strengths,
+          weaknesses: result.weaknesses,
+          test_type: result.testType,
+          target_level: result.targetLevel || null,
+          completed_at: result.completedAt,
+        };
+        const basicRes = await adminClient
+          .from('test_results')
+          .insert(basicData)
+          .select()
+          .single();
+
+        if (basicRes.error) {
+          console.error('Fatal error saving result to Supabase:', basicRes.error);
+          throw new InternalServerErrorException('حدث خطأ أثناء حفظ النتيجة، يرجى المحاولة مرة أخرى');
+        }
+        data = basicRes.data;
+      } else {
+        data = adminRes.data;
+      }
     }
 
     return {

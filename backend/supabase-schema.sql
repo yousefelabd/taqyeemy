@@ -19,6 +19,11 @@ create table if not exists public.test_results (
   completed_at timestamptz default now() not null
 );
 
+-- Ensure columns exist if table was created in an older schema version
+alter table public.test_results add column if not exists multiple_choice_score integer;
+alter table public.test_results add column if not exists writing_score integer;
+alter table public.test_results add column if not exists speaking_analysis jsonb;
+
 -- 2. Enable Row Level Security (RLS)
 alter table public.test_results enable row level security;
 
