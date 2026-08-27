@@ -1,14 +1,15 @@
-﻿import { Component, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, inject } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { AuthService } from '../../core/services/auth.service';
 
 @Component({
   selector: 'app-home',
   standalone: true,
-  imports: [RouterLink, MatButtonModule, MatCardModule, MatIconModule],
+  imports: [RouterLink, MatButtonModule, MatCardModule, MatIconModule, MatSnackBarModule],
   template: `
     <div class="page-container">
       <!-- Hero -->
@@ -20,18 +21,16 @@ import { AuthService } from '../../core/services/auth.service';
             مع تقرير مفصّل بنقاط قوتك وما تحتاج إلى تطويره.
           </p>
           <div class="hero-actions">
-            @if (isAuthenticated()) {
-              <a mat-raised-button color="primary" routerLink="/test-selection" class="cta-btn">
-                <mat-icon>play_arrow</mat-icon>
-                ابدأ الاختبار الآن
-              </a>
-            } @else {
-              <a mat-raised-button color="primary" routerLink="/auth/register" class="cta-btn">
-                <mat-icon>person_add</mat-icon>
-                أنشئ حسابك مجانًا
-              </a>
+            <button mat-raised-button color="primary" class="cta-btn" (click)="onStartTestClick()">
+              <mat-icon>play_arrow</mat-icon>
+              ابدأ الاختبار الآن
+            </button>
+            @if (!isAuthenticated()) {
               <a mat-stroked-button routerLink="/auth/login" class="cta-btn">
                 تسجيل الدخول
+              </a>
+              <a mat-button routerLink="/auth/register" class="cta-btn">
+                إنشاء حساب مجانًا
               </a>
             }
           </div>
@@ -135,7 +134,23 @@ import { AuthService } from '../../core/services/auth.service';
 })
 export class HomeComponent {
   private authService = inject(AuthService);
+  private router = inject(Router);
+  private snackBar = inject(MatSnackBar);
+
   isAuthenticated = this.authService.isAuthenticated;
+
+  onStartTestClick(): void {
+    if (this.isAuthenticated()) {
+      this.router.navigate(['/test-selection']);
+    } else {
+      this.snackBar.open('⚠️ يرجى تسجيل الدخول أولاً للبدء في الاختبار', 'تسجيل الدخول', {
+        duration: 4000,
+      }).onAction().subscribe(() => {
+        this.router.navigate(['/auth/login'], { queryParams: { returnUrl: '/test-selection' } });
+      });
+      this.router.navigate(['/auth/login'], { queryParams: { returnUrl: '/test-selection' } });
+    }
+  }
 
   cefrLevels = [
     { code: 'A1', arabic: 'مبتدئ', description: 'يمكنه فهم وإستخدام التعبيرات اليومية الأساسية.', barHeight: 40, label: 'Beginner' },
@@ -160,3 +175,4 @@ export class HomeComponent {
     { icon: 'language', title: 'واجهة عربية', description: 'واجهة كاملة بالعربية مع محتوى اختبار بالإنجليزية.' },
   ];
 }
+
