@@ -53,11 +53,13 @@ import { AuthService } from '../../../core/services/auth.service';
   `,
   styles: [`
     .navbar { position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: white; font-size: 20px; font-weight: 700; }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: #3b0764; font-size: 20px; font-weight: 800; transition: color 0.3s ease; }
     .brand-name { font-family: 'Cairo', sans-serif; }
+    :host-context(html.dark-theme) .brand, html.dark-theme .brand { color: #ffffff !important; }
     .spacer { flex: 1; }
     .nav-links { display: flex; gap: 4px; }
-    .active-link { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    .active-link { background: rgba(0,0,0,0.08); border-radius: 4px; }
+    :host-context(html.dark-theme) .active-link, html.dark-theme .active-link { background: rgba(255,255,255,0.15); }
     .user-btn { margin-right: 8px; }
     .register-btn { margin-right: 8px; }
     .user-info-menu { display: flex; align-items: center; gap: 8px; padding: 12px 16px; color: rgba(0,0,0,0.6); font-family: 'Cairo', sans-serif; }
