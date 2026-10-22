@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Allow: /auth/login
+Allow: /auth/register
+Disallow: /test
+Disallow: /test-selection
+Disallow: /result/
+Disallow: /history
+Disallow: /settings
+
+Sitemap: https://taqyeemy11.pages.dev/sitemap.xml

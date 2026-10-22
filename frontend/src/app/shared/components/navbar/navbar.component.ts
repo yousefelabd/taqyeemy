@@ -21,13 +21,13 @@ import { AuthService } from '../../../core/services/auth.service';
       <span class="spacer"></span>
 
       @if (isAuthenticated()) {
-        <nav class="nav-links">
+        <nav class="nav-links" aria-label="الروابط الرئيسية">
           <a mat-button routerLink="/" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact:true}">الرئيسية</a>
           <a mat-button routerLink="/test-selection" routerLinkActive="active-link">اختبار جديد</a>
           <a mat-button routerLink="/history" routerLinkActive="active-link">سجل الاختبارات</a>
         </nav>
 
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-btn">
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" class="user-btn" aria-label="قائمة حساب المستخدم">
           <mat-icon>account_circle</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
