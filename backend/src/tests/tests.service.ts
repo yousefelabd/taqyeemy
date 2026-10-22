@@ -178,14 +178,15 @@ export class TestsService {
     return this.resultsService.saveResult(evaluatedResult, token);
   }
 
-  async analyzeSpeakingAnswer(file: Express.Multer.File, questionText: string) {
+  async analyzeSpeakingAnswer(file: Express.Multer.File, questionText: string, clientTranscript?: string) {
     if (!file || !file.buffer) {
       throw new BadRequestException('الملف الصوتي غير صالح');
     }
     return this.aiService.analyzeSpeakingAudio(
       file.buffer,
-      file.mimetype || 'audio/m4a',
+      file.mimetype || 'audio/wav',
       questionText,
+      clientTranscript,
     );
   }
 }

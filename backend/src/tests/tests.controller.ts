@@ -36,10 +36,11 @@ export class TestsController {
   async analyzeSpeaking(
     @UploadedFile() audio: Express.Multer.File,
     @Body('questionText') questionText: string,
+    @Body('clientTranscript') clientTranscript?: string,
   ) {
     if (!audio) {
       throw new BadRequestException('الملف الصوتي مطلوب');
     }
-    return this.testsService.analyzeSpeakingAnswer(audio, questionText);
+    return this.testsService.analyzeSpeakingAnswer(audio, questionText, clientTranscript);
   }
 }

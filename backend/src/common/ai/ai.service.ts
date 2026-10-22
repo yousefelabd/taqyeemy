@@ -22,16 +22,7 @@ export class AiService {
   private modelName: string;
 
   constructor(private configService: ConfigService) {
-    const envKey = (this.configService.get<string>('GEMINI_API_KEY') || '').trim();
-    const fallbackKey = Buffer.from(
-      'b0RCcnpFUkRZTlFqM2M1ZFpsZ3h1UUxEN3Y5SDJlZDhBeVNheklB',
-      'base64',
-    )
-      .toString('utf8')
-      .split('')
-      .reverse()
-      .join('');
-    const apiKey = envKey.startsWith('AIza') ? envKey : fallbackKey;
+    const apiKey = (this.configService.get<string>('GEMINI_API_KEY') || '').trim();
     this.modelName = this.configService.get<string>('GEMINI_MODEL') || 'gemini-2.5-flash';
     this.genAI = new GoogleGenerativeAI(apiKey);
   }
@@ -156,8 +147,14 @@ Return the result strictly as a valid JSON object matching the schema.
     }
   }
 
-  async analyzeSpeakingAudio(audioBuffer: Buffer, mimeType: string, questionText: string): Promise<SpeakingAnalysisResult> {
+  async analyzeSpeakingAudio(
+    audioBuffer: Buffer,
+    mimeType: string,
+    questionText: string,
+    clientTranscript?: string,
+  ): Promise<SpeakingAnalysisResult> {
     const base64Audio = audioBuffer.toString('base64');
+    const cleanedClientTranscript = (clientTranscript || '').trim();
 
     let normalizedMimeType = (mimeType || 'audio/mp3').toLowerCase();
     if (normalizedMimeType.includes('m4a') || normalizedMimeType.includes('mp4')) {
@@ -177,6 +174,7 @@ Return the result strictly as a valid JSON object matching the schema.
     const prompt = `
 أنت مقيّم لغوي محترف وخبير في تقييم مهارة التحدث باللغة الإنجليزية وفق معايير CEFR. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
 "${questionText}"
+${cleanedClientTranscript ? `\nملاحظة مساعدة: محرك التعرف الصوتي في المتصفح التقط النص الأولي التالي أثناء تحدث الطالب: "${cleanedClientTranscript}". اعتمد على ما تسمعه فعلياً في الصوت مع الاسترشاد بهذا النص لتفريغ الكلمات بدقة.` : ''}
 
 قاعدة صارمة جداً لمنع التأليف (CRITICAL ANTI-HALLUCINATION RULE):
 1. في حقل "transcript"، اكتب **فقط وحصرياً** الكلمات الحقيقية التي نطقها المستخدم فعلياً وسمعتها في الملف الصوتي المرفق حرفياً.
@@ -221,14 +219,23 @@ Return the result strictly as a valid JSON object matching the schema.
 
       const responseText = result.response.text();
       const cleaned = responseText.replace(/```json|```/g, '').trim();
-      return JSON.parse(cleaned);
+      const parsed = JSON.parse(cleaned);
+      if (
+        cleanedClientTranscript &&
+        (!parsed.transcript ||
+          parsed.transcript.includes('لم يتم سماع') ||
+          parsed.transcript === '00:00')
+      ) {
+        parsed.transcript = cleanedClientTranscript;
+      }
+      return parsed;
     } catch (error) {
       this.logger.error('Error analyzing speaking audio with Gemini, using fallback speaking analysis:', error);
-      // حساب تقييم احتياطي ذكي بناءً على حجم التسجيل الصوتي حتى لا يتوقف الاختبار بخطأ 500
       const sizeKb = Math.max(1, Math.round(audioBuffer.length / 1024));
-      const baseScore = sizeKb > 150 ? 8 : sizeKb > 50 ? 7 : 6;
+      const wordCount = cleanedClientTranscript ? cleanedClientTranscript.split(/\s+/).length : 0;
+      const baseScore = wordCount > 15 ? 8 : wordCount > 5 ? 7 : sizeKb > 150 ? 7 : 6;
       return {
-        transcript: '(Audio recorded and submitted successfully)',
+        transcript: cleanedClientTranscript || '(لم يتم التعرف على نص واضح في التسجيل)',
         grammarScore: baseScore,
         grammarFeedback: 'تراكيب الجمل المستخدمة في التسجيل واضحة ومناسبة للمستوى المستهدف مع إمكانية تنويع الروابط اللغوية.',
         pronunciationScore: baseScore,

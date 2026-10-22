@@ -1,6 +1,5 @@
 import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnChanges, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -87,8 +86,8 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
           <p class="file-selected">
             ✅ تم تجهيز التسجيل الصوتي ({{ recordedDurationSec() > 0 ? recordedDurationSec() + ' ثانية — ' : '' }}{{ formatFileSize(selectedFile()!.size) }}) — يمكنك سماعه للتأكد:
           </p>
-          @if (safeAudioPreviewUrl()) {
-            <audio [src]="safeAudioPreviewUrl()" controls preload="metadata" class="audio-player"></audio>
+          @if (audioPreviewUrl()) {
+            <audio [src]="audioPreviewUrl()!" controls preload="auto" class="audio-player"></audio>
           }
         </div>
       }
@@ -155,12 +154,11 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
-  private sanitizer = inject(DomSanitizer);
 
   selectedFile = signal<File | null>(null);
-  safeAudioPreviewUrl = signal<SafeUrl | null>(null);
+  audioPreviewUrl = signal<string | null>(null);
   recordedDurationSec = signal<number>(0);
-  private rawAudioPreviewUrl: string | null = null;
+  liveTranscript = signal<string>('');
 
   errorMessage = signal<string | null>(null);
   isLoading = signal(false);
@@ -176,6 +174,8 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
   private recordingTimer: any = null;
   private audioContext: AudioContext | null = null;
   private volumeInterval: any = null;
+  private speechRecognition: any = null;
+  private accumulatedTranscript = '';
 
   readonly MAX_DURATION_SECONDS = 90;
 
@@ -194,6 +194,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     this.isSubmitted.set(false);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
+    this.liveTranscript.set('');
     this.errorMessage.set(null);
     this.revokePreviewUrl();
   }
@@ -211,16 +212,72 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
   private setPreviewBlob(blob: Blob): void {
     this.revokePreviewUrl();
-    this.rawAudioPreviewUrl = URL.createObjectURL(blob);
-    this.safeAudioPreviewUrl.set(this.sanitizer.bypassSecurityTrustUrl(this.rawAudioPreviewUrl));
+    const url = URL.createObjectURL(blob);
+    this.audioPreviewUrl.set(url);
   }
 
   private revokePreviewUrl(): void {
-    if (this.rawAudioPreviewUrl) {
-      URL.revokeObjectURL(this.rawAudioPreviewUrl);
-      this.rawAudioPreviewUrl = null;
+    const current = this.audioPreviewUrl();
+    if (current) {
+      URL.revokeObjectURL(current);
+      this.audioPreviewUrl.set(null);
     }
-    this.safeAudioPreviewUrl.set(null);
+  }
+
+  private stopSpeechRecognition(): void {
+    if (this.speechRecognition) {
+      try {
+        this.speechRecognition.onend = null;
+        this.speechRecognition.stop();
+      } catch {}
+      this.speechRecognition = null;
+    }
+  }
+
+  private startSpeechRecognition(): void {
+    try {
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRec) return;
+
+      this.accumulatedTranscript = '';
+      this.liveTranscript.set('');
+
+      const recognition = new SpeechRec();
+      recognition.lang = 'en-US';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+
+      recognition.onresult = (event: any) => {
+        let finalPart = '';
+        let interimPart = '';
+        for (let i = 0; i < event.results.length; i++) {
+          const transcript = event.results[i][0]?.transcript || '';
+          if (event.results[i].isFinal) {
+            finalPart += transcript + ' ';
+          } else {
+            interimPart += transcript;
+          }
+        }
+        const combined = `${this.accumulatedTranscript} ${finalPart} ${interimPart}`.replace(/\s+/g, ' ').trim();
+        if (combined) {
+          this.liveTranscript.set(combined);
+        }
+      };
+
+      recognition.onend = () => {
+        if (this.isRecording()) {
+          this.accumulatedTranscript = this.liveTranscript();
+          try {
+            recognition.start();
+          } catch {}
+        }
+      };
+
+      recognition.start();
+      this.speechRecognition = recognition;
+    } catch {
+      // ignore if browser blocks SpeechRecognition
+    }
   }
 
   private stopAudioMeter(): void {
@@ -240,6 +297,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
+    this.stopSpeechRecognition();
     this.stopAudioMeter();
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
@@ -258,6 +316,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     this.errorMessage.set(null);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
+    this.liveTranscript.set('');
     this.isSubmitted.set(false);
     this.revokePreviewUrl();
 
@@ -276,7 +335,9 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       });
       this.audioChunks = [];
 
-      // مؤشر مستوى الصوت المباشر عبر AnalyserNode فقط (بدون ScriptProcessor حتى لا يتوقف التسجيل)
+      this.startSpeechRecognition();
+
+      // مؤشر مستوى الصوت المباشر عبر AnalyserNode
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
@@ -326,6 +387,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
       recorder.onstop = async () => {
         const elapsedSec = Math.max(1, this.recordingSeconds());
+        this.stopSpeechRecognition();
         this.stopAudioMeter();
         if (this.mediaStream) {
           this.mediaStream.getTracks().forEach((t) => t.stop());
@@ -358,7 +420,6 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
           this.selectedFile.set(wavFile);
           this.setPreviewBlob(wavBlob);
         } catch {
-          // في حال تعذر التحويل لـ WAV على متصفح قديم، نستخدم الملف الأصلي
           const cleanMime = rawMime.includes('mp4') ? 'audio/mp4' : 'audio/webm';
           const ext = cleanMime === 'audio/mp4' ? 'm4a' : 'webm';
           const fallbackFile = new File([rawBlob], `speaking-recording.${ext}`, { type: cleanMime });
@@ -392,6 +453,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
+    this.stopSpeechRecognition();
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
         this.mediaRecorder.requestData();
@@ -476,6 +538,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     this.errorMessage.set(null);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
+    this.liveTranscript.set('');
     this.isSubmitted.set(false);
     this.revokePreviewUrl();
 
@@ -517,6 +580,9 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     const formData = new FormData();
     formData.append('audio', file);
     formData.append('questionText', this.questionText);
+    if (this.liveTranscript()) {
+      formData.append('clientTranscript', this.liveTranscript());
+    }
 
     try {
       const res = await firstValueFrom(
