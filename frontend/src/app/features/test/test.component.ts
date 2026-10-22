@@ -38,7 +38,13 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
               {{ session()!.testType === 'placement' ? 'تحديد المستوى' : 'اختبار مستوى ' + session()!.targetLevel }}
             </span>
             <span class="question-counter">
-              السؤال {{ currentIndex() + 1 }} من {{ totalQuestions() }}
+              @if (phase() === 'mcq') {
+                سؤال الاختياري رقم {{ mcqIndex() + 1 }}
+              } @else if (phase() === 'writing') {
+                مرحلة الكتابة (البراجراف)
+              } @else {
+                مرحلة التحدث الصوتي (السؤال الأخير)
+              }
             </span>
           </div>
           <mat-progress-bar mode="determinate" [value]="progressPercent()" class="progress-bar" />
@@ -97,7 +103,7 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
             </mat-card-content>
 
             <mat-card-actions class="card-actions">
-              <button mat-stroked-button (click)="previousQuestion()" [disabled]="currentIndex() === 0 || isSubmitting">
+              <button mat-stroked-button (click)="previousQuestion()" [disabled]="!canGoPrevious() || isSubmitting">
                 <mat-icon>arrow_forward</mat-icon>
                 السابق
               </button>
@@ -163,14 +169,64 @@ export class TestComponent implements OnInit {
   public router = inject(Router);
 
   session = this.testService.currentSession;
-  currentIndex = signal(0);
+
+  // مراحل الاختبار: الاختياري (mcq) -> البراجراف الواحد (writing) -> السؤال الصوتي الواحد (speaking)
+  phase = signal<'mcq' | 'writing' | 'speaking'>('mcq');
+  mcqIndex = signal(0);
+  stoppedLevel = signal<string>('A1');
+
   openTextAnswer = '';
   isSubmitting = false;
 
-  totalQuestions = computed(() => this.session()?.questions.length ?? 0);
-  progressPercent = computed(() => ((this.currentIndex() + 1) / this.totalQuestions()) * 100);
-  isLastQuestion = computed(() => this.currentIndex() === this.totalQuestions() - 1);
-  currentQuestion = computed((): Question | null => this.session()?.questions[this.currentIndex()] ?? null);
+  mcqQuestions = computed(() =>
+    (this.session()?.questions ?? []).filter((q) => q.type === 'multiple-choice'),
+  );
+
+  writingQuestions = computed(() =>
+    (this.session()?.questions ?? []).filter((q) => q.type === 'open-text'),
+  );
+
+  speakingQuestions = computed(() =>
+    (this.session()?.questions ?? []).filter((q) => q.type === 'speaking'),
+  );
+
+  selectedWritingQuestion = computed((): Question | null => {
+    const list = this.writingQuestions();
+    if (list.length === 0) return null;
+    const match = list.find((q) => q.targetLevel === this.stoppedLevel());
+    return match ?? list[0];
+  });
+
+  selectedSpeakingQuestion = computed((): Question | null => {
+    const list = this.speakingQuestions();
+    if (list.length === 0) return null;
+    const match = list.find((q) => q.targetLevel === this.stoppedLevel());
+    return match ?? list[0];
+  });
+
+  currentQuestion = computed((): Question | null => {
+    const currentPhase = this.phase();
+    if (currentPhase === 'mcq') {
+      return this.mcqQuestions()[this.mcqIndex()] ?? null;
+    }
+    if (currentPhase === 'writing') {
+      return this.selectedWritingQuestion();
+    }
+    return this.selectedSpeakingQuestion();
+  });
+
+  progressPercent = computed(() => {
+    const currentPhase = this.phase();
+    if (currentPhase === 'speaking') return 100;
+    if (currentPhase === 'writing') return 88;
+    const totalMcq = this.mcqQuestions().length || 1;
+    return Math.min(80, Math.round(((this.mcqIndex() + 1) / totalMcq) * 80));
+  });
+
+  isLastQuestion = computed(() => this.phase() === 'speaking');
+
+  canGoPrevious = computed(() => this.phase() === 'speaking');
+
   currentAnswer = computed(() => {
     const q = this.currentQuestion();
     return q ? (this.session()?.answers[q.id] ?? '') : '';
@@ -190,21 +246,55 @@ export class TestComponent implements OnInit {
   onSpeakingAnalyzed(result: SpeakingAnalysisResult): void {
     const jsonString = JSON.stringify(result);
     this.selectAnswer(jsonString);
-    if (!this.isLastQuestion()) {
-      setTimeout(() => this.nextQuestion(), 800);
+  }
+
+  private isMcqWrong(q: Question, selectedOptionId?: string): boolean {
+    if (!q.checkKey || !selectedOptionId) return false;
+    try {
+      const encoded = btoa(`${q.id}:${selectedOptionId}`);
+      return encoded !== q.checkKey;
+    } catch {
+      return false;
     }
   }
 
   nextQuestion(): void {
-    if (this.currentIndex() < this.totalQuestions() - 1) {
-      this.currentIndex.update((i) => i + 1);
-      this.openTextAnswer = this.currentAnswer();
+    const currentPhase = this.phase();
+
+    if (currentPhase === 'mcq') {
+      const mcqs = this.mcqQuestions();
+      const idx = this.mcqIndex();
+      const currentQ = mcqs[idx];
+      const currentLvl = currentQ?.targetLevel || 'A1';
+      const answers = this.session()?.answers ?? {};
+
+      // حساب عدد الأخطاء في المستوى الحالي حتى السؤال الحالي
+      const mistakesInCurrentLevel = mcqs
+        .slice(0, idx + 1)
+        .filter((q) => q.targetLevel === currentLvl && this.isMcqWrong(q, answers[q.id]))
+        .length;
+
+      // إذا وصل لـ 3 أخطاء في المستوى الحالي أو أنهى آخر سؤال اختياري -> ينتقل فوراً لسؤال البراجراف
+      if (mistakesInCurrentLevel >= 3 || idx >= mcqs.length - 1) {
+        this.stoppedLevel.set(currentLvl);
+        this.phase.set('writing');
+        this.openTextAnswer = this.currentAnswer();
+        return;
+      }
+
+      // غير ذلك يكمل للسؤال التالي
+      this.mcqIndex.set(idx + 1);
+      return;
+    }
+
+    if (currentPhase === 'writing') {
+      this.phase.set('speaking');
     }
   }
 
   previousQuestion(): void {
-    if (this.currentIndex() > 0) {
-      this.currentIndex.update((i) => i - 1);
+    if (this.phase() === 'speaking') {
+      this.phase.set('writing');
       this.openTextAnswer = this.currentAnswer();
     }
   }

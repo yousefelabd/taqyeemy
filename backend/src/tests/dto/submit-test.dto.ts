@@ -1,7 +1,7 @@
-﻿import { IsNotEmpty, IsObject, IsIn, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsObject, IsIn, IsOptional } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-const MAX_ANSWERS = 20;
+const MAX_ANSWERS = 100;
 const MAX_AUDIO_BASE64_BYTES = 20 * 1024 * 1024;
 
 export class SubmitTestDto {

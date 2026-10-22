@@ -33,11 +33,11 @@ import { CefrLevel } from '../../core/models/test.model';
             </div>
             <h2>تحديد المستوى</h2>
             <p class="card-desc">
-              لا تعرف مستواك؟ هذا الاختبار يبدأ من الأساسيات ويتدرج حتى الاحترافي ليحدد مستواك الدقيق من A1 إلى C2.
+              لا تعرف مستواك؟ هذا الاختبار يبدأ من الأساسيات ويتدرج حتى الاحترافي (10 أسئلة عشوائية لكل مستوى من بنك يضم 1000 سؤال) ليحدد مستواك الدقيق من A1 إلى C2.
             </p>
             <div class="card-meta">
-              <span><mat-icon class="meta-icon">timer</mat-icon> ~20-25 دقيقة</span>
-              <span><mat-icon class="meta-icon">quiz</mat-icon> 18 سؤالاً</span>
+              <span><mat-icon class="meta-icon">timer</mat-icon> ~15-20 دقيقة</span>
+              <span><mat-icon class="meta-icon">quiz</mat-icon> متدرج ذكي + كتابة + تحدث</span>
             </div>
             <div class="card-badge">الأكثر شيوعاً</div>
           </mat-card-content>
@@ -54,7 +54,7 @@ import { CefrLevel } from '../../core/models/test.model';
             </div>
             <h2>اختبار مستوى معين</h2>
             <p class="card-desc">
-              تريد التحقق من مستوى بعينه؟ اختر المستوى الذي تريد اختباره وسنوفر لك أسئلة مخصصة له.
+              تريد التحقق من مستوى بعينه؟ اختر المستوى الذي تريد اختباره وسنوفر لك 10 أسئلة اختيارية عشوائية مخصصة له، تليها مهمة كتابة وتحدث.
             </p>
 
             @if (selectedType === 'specific') {
@@ -72,10 +72,23 @@ import { CefrLevel } from '../../core/models/test.model';
 
             <div class="card-meta">
               <span><mat-icon class="meta-icon">timer</mat-icon> ~10-15 دقيقة</span>
-              <span><mat-icon class="meta-icon">quiz</mat-icon> 10 أسئلة</span>
+              <span><mat-icon class="meta-icon">quiz</mat-icon> 10 اختياري + براجراف + تحدث</span>
             </div>
           </mat-card-content>
         </mat-card>
+      </div>
+
+      <!-- شرح بسيط لنظام الاختبار قبل البدء -->
+      <div class="rules-box">
+        <div class="rules-title">
+          <mat-icon>lightbulb</mat-icon>
+          <span>كيف يعمل نظام الاختبار؟</span>
+        </div>
+        <ul class="rules-list">
+          <li><strong>المرحلة الأولى (الاختيار من متعدد):</strong> يعرض لك النظام <strong>10 أسئلة عشوائية</strong> في كل مستوى بدءاً من المبتدئ (A1) وحتى الاحترافي (C2) بدون إظهار صحة الإجابة أثناء الحل.</li>
+          <li><strong>الانتقال التلقائي الذكي:</strong> طالما إجاباتك في المستوى صحيحة تنتقل للمستوى الأعلى، وعند الوصول إلى <strong>3 إجابات خاطئة</strong> في المستوى يتوقف جزء الاختياري تلقائياً بعد تحديد مستواك فيه.</li>
+          <li><strong>المرحلة الثانية والثالثة (الكتابة والتحدث):</strong> تنتقل مباشرة لكتابة <strong>براجراف واحد فقط</strong> ثم <strong>سؤال تحدث صوتي واحد</strong> مناسبين للمستوى الذي وصلت إليه ليقيّم الذكاء الاصطناعي مستواك الشامل.</li>
+        </ul>
       </div>
 
       <div class="action-area">
@@ -110,7 +123,7 @@ import { CefrLevel } from '../../core/models/test.model';
     .page-header { text-align: center; margin-bottom: 48px; }
     .page-header h1 { font-size: 2rem; font-weight: 700; color: var(--mat-sys-primary); margin: 0 0 8px; }
     .page-header p { color: var(--mat-sys-on-surface-variant); font-size: 1.1rem; }
-    .selection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; margin: 0 auto 48px; }
+    .selection-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 900px; margin: 0 auto 28px; }
     @media (max-width: 768px) { .selection-grid { grid-template-columns: 1fr; } }
     .selection-card { cursor: pointer; transition: all 0.2s ease; position: relative; border: 2px solid transparent; }
     .selection-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12); transform: translateY(-2px); }
@@ -127,6 +140,10 @@ import { CefrLevel } from '../../core/models/test.model';
     .card-badge { display: inline-block; background: var(--mat-sys-primary-container); color: var(--mat-sys-on-primary-container); padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
     .level-select { margin-bottom: 16px; }
     .full-width { width: 100%; }
+    .rules-box { max-width: 900px; margin: 0 auto 32px; background: var(--mat-sys-surface-container-low); border: 1px solid var(--mat-sys-outline-variant); border-radius: 16px; padding: 20px 24px; }
+    .rules-title { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.05rem; color: var(--mat-sys-primary); margin-bottom: 12px; }
+    .rules-list { margin: 0; padding-right: 20px; color: var(--mat-sys-on-surface-variant); line-height: 1.8; font-size: 0.95rem; }
+    .rules-list li { margin-bottom: 6px; }
     .action-area { text-align: center; }
     .start-btn { height: 52px; font-size: 18px; padding: 0 40px; }
     .error-banner { display: inline-flex; align-items: center; gap: 8px; background: #ffebee; color: #c62828; padding: 12px 24px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }

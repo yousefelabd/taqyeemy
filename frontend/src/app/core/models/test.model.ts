@@ -14,6 +14,7 @@ export interface Question {
   options?: QuestionOption[];
   targetLevel?: CefrLevel;
   skill: 'grammar' | 'vocabulary' | 'reading' | 'writing' | 'speaking';
+  checkKey?: string;
 }
 
 export interface TestSession {
