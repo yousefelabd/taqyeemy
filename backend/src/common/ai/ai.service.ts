@@ -24,7 +24,7 @@ export class AiService {
   constructor(private configService: ConfigService) {
     const envKey = (this.configService.get<string>('GEMINI_API_KEY') || '').trim();
     const fallbackKey = Buffer.from(
-      'b0RCcnpFUkRZUU5qM2M1ZFpsZ3h1UUxEN3Y5SDJlZDhBeVNheklB',
+      'b0RCcnpFUkRZTlFqM2M1ZFpsZ3h1UUxEN3Y5SDJlZDhBeVNheklB',
       'base64',
     )
       .toString('utf8')

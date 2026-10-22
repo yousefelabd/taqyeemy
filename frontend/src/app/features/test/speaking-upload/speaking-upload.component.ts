@@ -85,18 +85,28 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
       @if (selectedFile() && !errorMessage() && !isSubmitted() && !isRecording()) {
         <div class="preview-box">
           <p class="file-selected">
-            ✅ تم تجهيز التسجيل الصوتي ({{ formatFileSize(selectedFile()!.size) }}) — يمكنك سماعه للتأكد:
+            ✅ تم تجهيز التسجيل الصوتي ({{ recordedDurationSec() > 0 ? recordedDurationSec() + ' ثانية — ' : '' }}{{ formatFileSize(selectedFile()!.size) }}) — يمكنك سماعه للتأكد:
           </p>
           @if (safeAudioPreviewUrl()) {
-            <audio [src]="safeAudioPreviewUrl()" controls preload="auto" class="audio-player"></audio>
+            <audio [src]="safeAudioPreviewUrl()" controls preload="metadata" class="audio-player"></audio>
           }
         </div>
       }
 
       @if (isSubmitted()) {
-        <p class="file-success">
-          ✅ تم تأكيد وتسجيل الإجابة الصوتية بنجاح! يمكنك الآن الضغط على «إنهاء الاختبار وعرض النتيجة».
-        </p>
+        <div class="submitted-box">
+          <p class="file-success">
+            ✅ تم تأكيد وتحليل الإجابة الصوتية بنجاح! يمكنك الآن الضغط على «إنهاء الاختبار وعرض النتيجة».
+          </p>
+          <button
+            type="button"
+            mat-stroked-button
+            color="warn"
+            (click)="resetSubmittedRecording()">
+            <mat-icon>refresh</mat-icon>
+            <span>إعادة تسجيل إجابة صوتية جديدة</span>
+          </button>
+        </div>
       }
 
       @if (selectedFile() && !errorMessage() && !isSubmitted() && !isRecording()) {
@@ -134,7 +144,8 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
     .audio-player { width: 100%; height: 42px; border-radius: 20px; outline: none; }
     .error-message { color: #c62828; font-weight: 600; margin: 4px 0; }
     .file-selected { color: #2e7d32; font-weight: 600; margin: 0; font-size: 14px; }
-    .file-success { color: #2e7d32; font-weight: 700; font-size: 15px; margin: 8px 0; }
+    .submitted-box { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    .file-success { color: #2e7d32; font-weight: 700; font-size: 15px; margin: 4px 0; }
   `],
 })
 export class SpeakingUploadComponent implements OnChanges, OnDestroy {
@@ -148,6 +159,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
   selectedFile = signal<File | null>(null);
   safeAudioPreviewUrl = signal<SafeUrl | null>(null);
+  recordedDurationSec = signal<number>(0);
   private rawAudioPreviewUrl: string | null = null;
 
   errorMessage = signal<string | null>(null);
@@ -158,25 +170,31 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
   recordingSeconds = signal(0);
   micVolume = signal(0);
 
+  private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
+  private audioChunks: Blob[] = [];
   private recordingTimer: any = null;
   private audioContext: AudioContext | null = null;
-  private mediaSource: MediaStreamAudioSourceNode | null = null;
-  private scriptProcessor: ScriptProcessorNode | null = null;
-  private zeroGain: GainNode | null = null;
-  private pcmChunks: Float32Array[] = [];
-  private recordedSampleRate = 44100;
+  private volumeInterval: any = null;
 
   readonly MAX_DURATION_SECONDS = 90;
 
   ngOnChanges(): void {
-    if (this.alreadySubmitted) {
+    if (this.alreadySubmitted && !this.selectedFile()) {
       this.isSubmitted.set(true);
     }
   }
 
   ngOnDestroy(): void {
     this.cleanupRecording();
+    this.revokePreviewUrl();
+  }
+
+  resetSubmittedRecording(): void {
+    this.isSubmitted.set(false);
+    this.selectedFile.set(null);
+    this.recordedDurationSec.set(0);
+    this.errorMessage.set(null);
     this.revokePreviewUrl();
   }
 
@@ -205,20 +223,11 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     this.safeAudioPreviewUrl.set(null);
   }
 
-  private disconnectAudioGraph(): void {
-    try {
-      this.scriptProcessor?.disconnect();
-    } catch {}
-    try {
-      this.mediaSource?.disconnect();
-    } catch {}
-    try {
-      this.zeroGain?.disconnect();
-    } catch {}
-    this.scriptProcessor = null;
-    this.mediaSource = null;
-    this.zeroGain = null;
-
+  private stopAudioMeter(): void {
+    if (this.volumeInterval) {
+      clearInterval(this.volumeInterval);
+      this.volumeInterval = null;
+    }
     if (this.audioContext) {
       this.audioContext.close().catch(() => {});
       this.audioContext = null;
@@ -231,7 +240,12 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
-    this.disconnectAudioGraph();
+    this.stopAudioMeter();
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try {
+        this.mediaRecorder.stop();
+      } catch {}
+    }
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((t) => t.stop());
       this.mediaStream = null;
@@ -243,6 +257,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     if (this.isRecording() || this.isLoading()) return;
     this.errorMessage.set(null);
     this.selectedFile.set(null);
+    this.recordedDurationSec.set(0);
     this.isSubmitted.set(false);
     this.revokePreviewUrl();
 
@@ -259,40 +274,103 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
           autoGainControl: true,
         },
       });
+      this.audioChunks = [];
 
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      this.audioContext = new AudioCtx();
-      if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+      // مؤشر مستوى الصوت المباشر عبر AnalyserNode فقط (بدون ScriptProcessor حتى لا يتوقف التسجيل)
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+          if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+          }
+          const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+          const analyser = this.audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          const dataArray = new Uint8Array(analyser.fftSize);
+
+          this.volumeInterval = setInterval(() => {
+            analyser.getByteTimeDomainData(dataArray);
+            let maxDeviation = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              const dev = Math.abs(dataArray[i] - 128);
+              if (dev > maxDeviation) maxDeviation = dev;
+            }
+            const percent = Math.min(100, Math.round((maxDeviation / 45) * 100));
+            this.micVolume.set(percent);
+          }, 100);
+        }
+      } catch {
+        // ignore audio meter errors
       }
 
-      this.recordedSampleRate = this.audioContext.sampleRate || 44100;
-      this.pcmChunks = [];
+      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+            ? 'audio/mp4'
+            : '';
 
-      this.mediaSource = this.audioContext.createMediaStreamSource(this.mediaStream);
-      this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 1, 1);
-      this.zeroGain = this.audioContext.createGain();
-      this.zeroGain.gain.value = 0;
+      const recorder = preferredMime
+        ? new MediaRecorder(this.mediaStream, { mimeType: preferredMime })
+        : new MediaRecorder(this.mediaStream);
+      this.mediaRecorder = recorder;
 
-      this.scriptProcessor.onaudioprocess = (event: AudioProcessingEvent) => {
-        if (!this.isRecording()) return;
-        const input = event.inputBuffer.getChannelData(0);
-        this.pcmChunks.push(new Float32Array(input));
-
-        // حساب مؤشر الصوت اللحظي
-        let peak = 0;
-        for (let i = 0; i < input.length; i++) {
-          const abs = Math.abs(input[i]);
-          if (abs > peak) peak = abs;
+      recorder.ondataavailable = (event: BlobEvent) => {
+        if (event.data && event.data.size > 0) {
+          this.audioChunks.push(event.data);
         }
-        const percent = Math.min(100, Math.round(peak * 220));
-        this.micVolume.set(percent);
       };
 
-      this.mediaSource.connect(this.scriptProcessor);
-      this.scriptProcessor.connect(this.zeroGain);
-      this.zeroGain.connect(this.audioContext.destination);
+      recorder.onstop = async () => {
+        const elapsedSec = Math.max(1, this.recordingSeconds());
+        this.stopAudioMeter();
+        if (this.mediaStream) {
+          this.mediaStream.getTracks().forEach((t) => t.stop());
+          this.mediaStream = null;
+        }
+        this.isRecording.set(false);
 
+        const rawMime = (recorder.mimeType || preferredMime || 'audio/webm').toLowerCase();
+        const rawBlob = new Blob(this.audioChunks, { type: rawMime });
+
+        if (rawBlob.size === 0) {
+          this.errorMessage.set('لم يتم التقاط أي صوت، يرجى المحاولة مرة أخرى.');
+          this.cdr.detectChanges();
+          return;
+        }
+
+        // فك ضغط الصوت وتحويله إلى ملف WAV قياسي (16-bit 16kHz PCM) يحتوي على مدة التسجيل الدقيقة في الـ Header
+        try {
+          const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+          const decodeCtx: AudioContext = new AudioCtx();
+          const arrayBuf = await rawBlob.arrayBuffer();
+          const audioBuffer = await decodeCtx.decodeAudioData(arrayBuf);
+          await decodeCtx.close().catch(() => {});
+
+          const channelData = audioBuffer.getChannelData(0);
+          const wavBlob = this.encodeWavFromChunks([channelData], audioBuffer.sampleRate, 16000);
+          const wavFile = new File([wavBlob], 'speaking-recording.wav', { type: 'audio/wav' });
+
+          this.recordedDurationSec.set(Math.max(1, Math.round(audioBuffer.duration)));
+          this.selectedFile.set(wavFile);
+          this.setPreviewBlob(wavBlob);
+        } catch {
+          // في حال تعذر التحويل لـ WAV على متصفح قديم، نستخدم الملف الأصلي
+          const cleanMime = rawMime.includes('mp4') ? 'audio/mp4' : 'audio/webm';
+          const ext = cleanMime === 'audio/mp4' ? 'm4a' : 'webm';
+          const fallbackFile = new File([rawBlob], `speaking-recording.${ext}`, { type: cleanMime });
+          this.recordedDurationSec.set(elapsedSec);
+          this.selectedFile.set(fallbackFile);
+          this.setPreviewBlob(rawBlob);
+        }
+
+        this.cdr.detectChanges();
+      };
+
+      recorder.start(200);
       this.isRecording.set(true);
       this.recordingSeconds.set(0);
 
@@ -310,32 +388,18 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
   }
 
   stopRecording(): void {
-    if (!this.isRecording()) return;
-
     if (this.recordingTimer) {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
-
-    this.isRecording.set(false);
-    this.disconnectAudioGraph();
-
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach((t) => t.stop());
-      this.mediaStream = null;
-    }
-
-    if (this.pcmChunks.length > 0) {
-      const wavBlob = this.encodeWavFromChunks(this.pcmChunks, this.recordedSampleRate, 16000);
-      this.pcmChunks = [];
-      const wavFile = new File([wavBlob], 'speaking-recording.wav', { type: 'audio/wav' });
-      this.selectedFile.set(wavFile);
-      this.setPreviewBlob(wavBlob);
+    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try {
+        this.mediaRecorder.requestData();
+      } catch {}
+      this.mediaRecorder.stop();
     } else {
-      this.errorMessage.set('لم يتم التقاط أي صوت، يرجى المحاولة مرة أخرى.');
+      this.cleanupRecording();
     }
-
-    this.cdr.detectChanges();
   }
 
   private encodeWavFromChunks(chunks: Float32Array[], sourceRate: number, targetRate: number): Blob {
@@ -350,7 +414,6 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       offset += c.length;
     }
 
-    // خفض التردد إلى 16kHz Mono ليكون خفيف الحجم وبجودة مثالية لـ Gemini ومتوافقاً مع كل المتصفحات
     const finalRate = sourceRate > targetRate ? targetRate : sourceRate;
     let samples: Float32Array;
     if (finalRate === sourceRate) {
@@ -385,13 +448,13 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     view.setUint32(4, 36 + samples.length * 2, true);
     writeString(8, 'WAVE');
     writeString(12, 'fmt ');
-    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-    view.setUint16(20, 1, true);  // AudioFormat (1 = PCM)
-    view.setUint16(22, 1, true);  // NumChannels (1 = Mono)
-    view.setUint32(24, finalRate, true); // SampleRate
-    view.setUint32(28, finalRate * 2, true); // ByteRate
-    view.setUint16(32, 2, true);  // BlockAlign
-    view.setUint16(34, 16, true); // BitsPerSample
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, finalRate, true);
+    view.setUint32(28, finalRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
     writeString(36, 'data');
     view.setUint32(40, samples.length * 2, true);
 
@@ -412,6 +475,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
     this.errorMessage.set(null);
     this.selectedFile.set(null);
+    this.recordedDurationSec.set(0);
     this.isSubmitted.set(false);
     this.revokePreviewUrl();
 
@@ -422,6 +486,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
         input.value = '';
         return;
       }
+      this.recordedDurationSec.set(duration > 0 ? Math.round(duration) : 0);
       this.selectedFile.set(file);
       this.setPreviewBlob(file);
     } catch {
