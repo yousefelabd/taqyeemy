@@ -19,8 +19,8 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
       <!-- حالة التسجيل المباشر من المايكروفون -->
       @if (!isSubmitted()) {
         <div class="mic-controls">
-          <!-- اختيار المايكروفون إذا كان هناك أكثر من جهاز إدخال صوتي -->
-          @if (!isRecording() && audioInputDevices().length > 1) {
+          <!-- اختيار المايكروفون (الافتراضي للنظام هو المختار تلقائياً) -->
+          @if (!isRecording() && audioInputDevices().length > 0) {
             <div class="mic-select-row">
               <label for="micDeviceSelect" class="mic-select-label">🎙️ المايكروفون المستخدم:</label>
               <select
@@ -28,8 +28,11 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
                 class="mic-select"
                 [ngModel]="selectedDeviceId()"
                 (ngModelChange)="selectedDeviceId.set($event)">
+                <option value="">المايكروفون الافتراضي للنظام (تلقائي)</option>
                 @for (dev of audioInputDevices(); track dev.deviceId) {
-                  <option [value]="dev.deviceId">{{ dev.label || 'مايكروفون ' + ($index + 1) }}</option>
+                  @if (dev.deviceId !== 'default') {
+                    <option [value]="dev.deviceId">{{ dev.label || 'مايكروفون ' + ($index + 1) }}</option>
+                  }
                 }
               </select>
             </div>
@@ -54,6 +57,10 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
                 <span class="pulse-dot"></span>
                 <span>جاري التسجيل... {{ formatTime(recordingSeconds()) }} / 01:30</span>
               </div>
+
+              @if (activeMicLabel()) {
+                <small class="active-mic-hint">🎙️ يسجل الآن من: {{ activeMicLabel() }}</small>
+              }
 
               <button
                 type="button"
@@ -93,14 +100,24 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
       @if (selectedFile() && !errorMessage() && !isSubmitted() && !isRecording()) {
         <div class="preview-box">
           <p class="file-selected">
-            ✅ تم تجهيز التسجيل الصوتي ({{ recordedDurationSec() > 0 ? recordedDurationSec() + ' ثانية — ' : '' }}{{ formatFileSize(selectedFile()!.size) }}) — اسمع تسجيلك للتأكد قبل الإرسال:
+            ✅ تم تجهيز التسجيل الصوتي ({{ recordedDurationSec() > 0 ? recordedDurationSec() + ' ثانية — ' : '' }}{{ formatFileSize(selectedFile()!.size) }})
           </p>
+
           @if (audioPreviewUrl()) {
+            <button
+              type="button"
+              mat-stroked-button
+              color="primary"
+              class="play-test-btn"
+              (click)="toggleCustomPlayback()">
+              <mat-icon>{{ isPlayingPreview() ? 'stop' : 'volume_up' }}</mat-icon>
+              <span>{{ isPlayingPreview() ? 'إيقاف تشغيل الصوت' : '🔊 اضغط هنا لسماع تسجيلك والتأكد من الصوت' }}</span>
+            </button>
+
             <audio
               [src]="audioPreviewUrl()!"
               controls
               preload="auto"
-              (loadedmetadata)="onPreviewLoadedMetadata($event)"
               class="audio-player">
             </audio>
           }
@@ -142,18 +159,20 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
   styles: [`
     .upload-section { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; border: 2px dashed #ccc; border-radius: 12px; background: #fafafa; margin: 16px 0; text-align: center; }
     .mic-controls { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
-    .mic-select-row { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 340px; }
+    .mic-select-row { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; max-width: 360px; }
     .mic-select-label { font-size: 13px; font-weight: 600; color: #444; }
     .mic-select { width: 100%; padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit; font-size: 13px; background: #fff; }
     .record-btn { padding: 10px 24px; border-radius: 28px; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
     .recording-active { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 360px; }
     .recording-badge { display: inline-flex; align-items: center; gap: 10px; background: #ffebee; color: #c62828; padding: 8px 18px; border-radius: 24px; font-weight: 700; font-size: 15px; }
+    .active-mic-hint { font-size: 12px; color: #555; font-weight: 600; }
     .pulse-dot { width: 12px; height: 12px; background: #d32f2f; border-radius: 50%; animation: pulse 1s infinite ease-in-out; }
     @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.35); opacity: 0.45; } }
     .stop-btn { border-radius: 24px; font-weight: 700; }
     .backup-upload { margin-top: 4px; }
     .upload-label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 13px; }
-    .preview-box { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 400px; background: #fff; padding: 14px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .preview-box { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 420px; background: #fff; padding: 14px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .play-test-btn { border-radius: 20px; font-weight: 700; width: 100%; }
     .audio-player { width: 100%; height: 42px; border-radius: 20px; outline: none; }
     .error-message { color: #c62828; font-weight: 600; margin: 4px 0; }
     .file-selected { color: #2e7d32; font-weight: 600; margin: 0; font-size: 14px; }
@@ -175,6 +194,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
 
   audioInputDevices = signal<MediaDeviceInfo[]>([]);
   selectedDeviceId = signal<string>('');
+  activeMicLabel = signal<string>('');
 
   errorMessage = signal<string | null>(null);
   isLoading = signal(false);
@@ -182,11 +202,13 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
 
   isRecording = signal(false);
   recordingSeconds = signal(0);
+  isPlayingPreview = signal(false);
 
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
   private audioChunks: Blob[] = [];
   private recordingTimer: any = null;
+  private previewAudioObj: HTMLAudioElement | null = null;
 
   readonly MAX_DURATION_SECONDS = 90;
 
@@ -202,6 +224,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
 
   ngOnDestroy(): void {
     this.cleanupRecording();
+    this.stopCustomPlayback();
     this.revokePreviewUrl();
   }
 
@@ -211,34 +234,51 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const inputs = devices.filter((d) => d.kind === 'audioinput' && d.deviceId);
       this.audioInputDevices.set(inputs);
-      if (inputs.length > 0 && !this.selectedDeviceId()) {
-        this.selectedDeviceId.set(inputs[0].deviceId);
-      }
     } catch {
       // ignore
     }
   }
 
-  onPreviewLoadedMetadata(event: Event): void {
-    const audio = event.target as HTMLAudioElement;
-    if (!audio) return;
-    // إصلاح مشكلة متصفحات Chromium/Brave مع ملفات WebM التي تظهر مدتها Infinity أو 0:00
-    if (audio.duration === Infinity || isNaN(audio.duration)) {
-      audio.currentTime = 1e101;
-      const resetTime = () => {
-        audio.removeEventListener('timeupdate', resetTime);
-        audio.currentTime = 0;
-        if (isFinite(audio.duration) && audio.duration > 0) {
-          this.recordedDurationSec.set(Math.max(1, Math.round(audio.duration)));
-        }
-      };
-      audio.addEventListener('timeupdate', resetTime);
-    } else if (isFinite(audio.duration) && audio.duration > 0) {
-      this.recordedDurationSec.set(Math.max(1, Math.round(audio.duration)));
+  toggleCustomPlayback(): void {
+    if (this.isPlayingPreview()) {
+      this.stopCustomPlayback();
+      return;
     }
+    const url = this.audioPreviewUrl();
+    if (!url) return;
+
+    this.stopCustomPlayback();
+    const audio = new Audio(url);
+    this.previewAudioObj = audio;
+    this.isPlayingPreview.set(true);
+
+    audio.onended = () => {
+      this.isPlayingPreview.set(false);
+      this.cdr.detectChanges();
+    };
+    audio.onerror = () => {
+      this.isPlayingPreview.set(false);
+      this.cdr.detectChanges();
+    };
+    audio.play().catch(() => {
+      this.isPlayingPreview.set(false);
+      this.cdr.detectChanges();
+    });
+  }
+
+  private stopCustomPlayback(): void {
+    if (this.previewAudioObj) {
+      try {
+        this.previewAudioObj.pause();
+        this.previewAudioObj.currentTime = 0;
+      } catch {}
+      this.previewAudioObj = null;
+    }
+    this.isPlayingPreview.set(false);
   }
 
   resetSubmittedRecording(): void {
+    this.stopCustomPlayback();
     this.isSubmitted.set(false);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
@@ -258,17 +298,29 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
   }
 
   private setPreviewBlob(blob: Blob): void {
+    this.stopCustomPlayback();
     this.revokePreviewUrl();
-    const url = URL.createObjectURL(blob);
-    this.audioPreviewUrl.set(url);
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        this.audioPreviewUrl.set(reader.result);
+        this.cdr.detectChanges();
+      }
+    };
+    reader.onerror = () => {
+      const url = URL.createObjectURL(blob);
+      this.audioPreviewUrl.set(url);
+      this.cdr.detectChanges();
+    };
+    reader.readAsDataURL(blob);
   }
 
   private revokePreviewUrl(): void {
     const current = this.audioPreviewUrl();
-    if (current) {
+    if (current && current.startsWith('blob:')) {
       URL.revokeObjectURL(current);
-      this.audioPreviewUrl.set(null);
     }
+    this.audioPreviewUrl.set(null);
   }
 
   private cleanupRecording(): void {
@@ -290,6 +342,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
 
   async startRecording(): Promise<void> {
     if (this.isRecording() || this.isLoading()) return;
+    this.stopCustomPlayback();
     this.errorMessage.set(null);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
@@ -311,18 +364,24 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
         audio: audioConstraints,
       });
 
-      // تحديث أسماء المايكروفونات بعد منح الصلاحية
+      const audioTrack = this.mediaStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = true;
+        this.activeMicLabel.set(audioTrack.label || 'المايكروفون الافتراضي للنظام');
+      }
+
+      // تحديث قائمة المايكروفونات المتاحة بعد منح الصلاحية
       this.refreshAudioDevices();
 
       this.audioChunks = [];
 
-      // استخدام MediaRecorder الخام مباشرة بدون تدخل AudioContext (لتجنب حظر الصوت في متصفح Brave)
-      const preferredMime = MediaRecorder.isTypeSupported('audio/mp4')
-        ? 'audio/mp4'
-        : MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/webm')
-            ? 'audio/webm'
+      // استخدام صيغة المتصفح الأصلية (WebM/Opus) مباشرة بدون أي تدخل من AudioContext
+      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm')
+          ? 'audio/webm'
+          : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+            ? 'audio/ogg;codecs=opus'
             : '';
 
       const recorder = preferredMime
@@ -345,12 +404,12 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
         this.isRecording.set(false);
 
         const rawMime = (recorder.mimeType || preferredMime || 'audio/webm').toLowerCase();
-        const cleanMime = rawMime.includes('mp4')
-          ? 'audio/mp4'
-          : rawMime.includes('ogg')
-            ? 'audio/ogg'
+        const cleanMime = rawMime.includes('ogg')
+          ? 'audio/ogg'
+          : rawMime.includes('mp4')
+            ? 'audio/mp4'
             : 'audio/webm';
-        const ext = cleanMime === 'audio/mp4' ? 'm4a' : cleanMime === 'audio/ogg' ? 'ogg' : 'webm';
+        const ext = cleanMime === 'audio/ogg' ? 'ogg' : cleanMime === 'audio/mp4' ? 'm4a' : 'webm';
 
         const recordedBlob = new Blob(this.audioChunks, { type: cleanMime });
 
@@ -367,7 +426,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
         this.cdr.detectChanges();
       };
 
-      recorder.start(250);
+      recorder.start();
       this.isRecording.set(true);
       this.recordingSeconds.set(0);
 
@@ -390,9 +449,6 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
       this.recordingTimer = null;
     }
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-      try {
-        this.mediaRecorder.requestData();
-      } catch {}
       this.mediaRecorder.stop();
     } else {
       this.cleanupRecording();
@@ -404,6 +460,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
     const file = input.files?.[0];
     if (!file) return;
 
+    this.stopCustomPlayback();
     this.errorMessage.set(null);
     this.selectedFile.set(null);
     this.recordedDurationSec.set(0);
@@ -442,6 +499,7 @@ export class SpeakingUploadComponent implements OnInit, OnChanges, OnDestroy {
   async confirmRecording() {
     const file = this.selectedFile();
     if (!file || this.isLoading()) return;
+    this.stopCustomPlayback();
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
