@@ -6,13 +6,65 @@ import { TestResult } from '../models/result.model';
 import { environment } from '../../../environments/environment';
 
 const API_URL = `${environment.apiUrl}/tests`;
+const SESSION_STORAGE_KEY = 'taqyeemy_active_session';
+const PROGRESS_STORAGE_KEY = 'taqyeemy_test_progress';
+
+export interface SavedTestProgress {
+  phase: 'mcq' | 'writing' | 'speaking';
+  mcqIndex: number;
+  stoppedLevel: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class TestService {
   private http = inject(HttpClient);
 
-  private _session = signal<TestSession | null>(null);
+  private _session = signal<TestSession | null>(this.loadSessionFromStorage());
   readonly currentSession = this._session.asReadonly();
+
+  private loadSessionFromStorage(): TestSession | null {
+    try {
+      const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as TestSession;
+      if (parsed && parsed.status === 'in-progress' && Array.isArray(parsed.questions)) {
+        return parsed;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  private saveSessionToStorage(session: TestSession | null): void {
+    try {
+      if (!session || session.status !== 'in-progress') {
+        sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
+      } else {
+        sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+      }
+    } catch {
+      // ignore storage quota errors
+    }
+  }
+
+  saveProgress(progress: SavedTestProgress): void {
+    try {
+      sessionStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+    } catch {
+      // ignore
+    }
+  }
+
+  loadProgress(): SavedTestProgress | null {
+    try {
+      const raw = sessionStorage.getItem(PROGRESS_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as SavedTestProgress) : null;
+    } catch {
+      return null;
+    }
+  }
 
   async startSession(testType: TestType, targetLevel?: CefrLevel): Promise<TestSession> {
     const params: Record<string, string> = { type: testType };
@@ -33,12 +85,19 @@ export class TestService {
       status: 'in-progress',
     };
 
+    sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
     this._session.set(session);
+    this.saveSessionToStorage(session);
     return session;
   }
 
   submitAnswer(questionId: string, answer: string): void {
-    this._session.update((s) => (s ? { ...s, answers: { ...s.answers, [questionId]: answer } } : s));
+    this._session.update((s) => {
+      if (!s) return s;
+      const updated: TestSession = { ...s, answers: { ...s.answers, [questionId]: answer } };
+      this.saveSessionToStorage(updated);
+      return updated;
+    });
   }
 
   async submitAndEvaluate(): Promise<TestResult> {
@@ -56,10 +115,12 @@ export class TestService {
     );
 
     this._session.update((curr) => (curr ? { ...curr, status: 'completed', completedAt: new Date() } : curr));
+    this.saveSessionToStorage(null);
     return result;
   }
 
   clearSession(): void {
     this._session.set(null);
+    this.saveSessionToStorage(null);
   }
 }

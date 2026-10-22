@@ -30,7 +30,12 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
   ],
   template: `
     @if (session()) {
-      <div class="page-container test-page">
+      <div
+        class="page-container test-page no-copy"
+        (copy)="blockCopyPaste($event)"
+        (cut)="blockCopyPaste($event)"
+        (paste)="blockCopyPaste($event)"
+        (contextmenu)="blockCopyPaste($event)">
         <!-- Progress Header -->
         <div class="test-header">
           <div class="test-meta">
@@ -88,9 +93,13 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
                     dir="ltr"
                     [(ngModel)]="openTextAnswer"
                     placeholder="Write your answer in English..."
+                    (paste)="blockCopyPaste($event)"
+                    (copy)="blockCopyPaste($event)"
+                    (cut)="blockCopyPaste($event)"
+                    (drop)="blockCopyPaste($event)"
                     (ngModelChange)="selectAnswer($event)">
                   </textarea>
-                  <mat-hint>اكتب بالإنجليزية — الواجهة عربية فقط</mat-hint>
+                  <mat-hint>اكتب بالإنجليزية من تعبيرك الخاص (النسخ واللصق مغلق أثناء الاختبار)</mat-hint>
                 </mat-form-field>
               }
 
@@ -98,6 +107,7 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
               @if (currentQuestion()!.type === 'speaking') {
                 <app-speaking-upload
                   [questionText]="currentQuestion()!.text"
+                  [alreadySubmitted]="!!currentAnswer()"
                   (analyzed)="onSpeakingAnalyzed($event)" />
               }
             </mat-card-content>
@@ -143,6 +153,7 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
   `,
   styles: [`
     .test-page { max-width: 800px; }
+    .no-copy { user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
     .test-header { margin-bottom: 32px; }
     .test-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .test-type-label { font-weight: 700; color: var(--mat-sys-primary); font-size: 16px; }
@@ -235,7 +246,31 @@ export class TestComponent implements OnInit {
   ngOnInit(): void {
     if (!this.session()) {
       this.router.navigate(['/test-selection']);
+      return;
     }
+
+    // استرجاع خطوة الطالب الحالية في حال عمل Refresh للصفحة
+    const savedProgress = this.testService.loadProgress();
+    if (savedProgress) {
+      this.phase.set(savedProgress.phase);
+      this.mcqIndex.set(savedProgress.mcqIndex);
+      this.stoppedLevel.set(savedProgress.stoppedLevel);
+      if (savedProgress.phase === 'writing') {
+        this.openTextAnswer = this.currentAnswer();
+      }
+    }
+  }
+
+  private persistProgress(): void {
+    this.testService.saveProgress({
+      phase: this.phase(),
+      mcqIndex: this.mcqIndex(),
+      stoppedLevel: this.stoppedLevel(),
+    });
+  }
+
+  blockCopyPaste(event: Event): void {
+    event.preventDefault();
   }
 
   selectAnswer(answer: string): void {
@@ -279,16 +314,19 @@ export class TestComponent implements OnInit {
         this.stoppedLevel.set(currentLvl);
         this.phase.set('writing');
         this.openTextAnswer = this.currentAnswer();
+        this.persistProgress();
         return;
       }
 
       // غير ذلك يكمل للسؤال التالي
       this.mcqIndex.set(idx + 1);
+      this.persistProgress();
       return;
     }
 
     if (currentPhase === 'writing') {
       this.phase.set('speaking');
+      this.persistProgress();
     }
   }
 
@@ -296,6 +334,7 @@ export class TestComponent implements OnInit {
     if (this.phase() === 'speaking') {
       this.phase.set('writing');
       this.openTextAnswer = this.currentAnswer();
+      this.persistProgress();
     }
   }
 
