@@ -47,12 +47,6 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
                 </div>
               </div>
 
-              @if (recordingSeconds() >= 3 && !detectedSound()) {
-                <p class="silent-warning">
-                  ⚠️ لم يتم التقاط صوت واضح حتى الآن — تأكد من التحدث بالقرب من المايكروفون وأنه غير مكتوم (Mute).
-                </p>
-              }
-
               <button
                 type="button"
                 mat-raised-button
@@ -133,7 +127,6 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
     .mic-meter-label { font-size: 12px; color: #555; font-weight: 600; }
     .mic-meter-track { width: 100%; height: 10px; background: #e0e0e0; border-radius: 6px; overflow: hidden; }
     .mic-meter-fill { height: 100%; background: linear-gradient(90deg, #43a047, #1e88e5); transition: width 0.08s ease-out; border-radius: 6px; }
-    .silent-warning { font-size: 12.5px; color: #e65100; background: #fff3e0; padding: 8px 12px; border-radius: 8px; margin: 0; font-weight: 600; }
     .stop-btn { border-radius: 24px; font-weight: 700; }
     .backup-upload { margin-top: 4px; }
     .upload-label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 13px; }
@@ -164,7 +157,6 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
   isRecording = signal(false);
   recordingSeconds = signal(0);
   micVolume = signal(0);
-  detectedSound = signal(false);
 
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
@@ -248,7 +240,6 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     this.errorMessage.set(null);
     this.selectedFile.set(null);
     this.isSubmitted.set(false);
-    this.detectedSound.set(false);
     this.revokePreviewUrl();
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -257,38 +248,32 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     }
 
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       this.audioChunks = [];
 
-      // إعداد مؤشر مستوى الصوت للتأكد من أن المايكروفون يلتقط الصوت فعلياً
+      // إعداد مؤشر مستوى الصوت الموجي المباشر
       try {
         const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioCtx) {
           this.audioContext = new AudioCtx();
+          if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
+          }
           const source = this.audioContext.createMediaStreamSource(this.mediaStream);
           const analyser = this.audioContext.createAnalyser();
           analyser.fftSize = 256;
           source.connect(analyser);
-          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+          const dataArray = new Uint8Array(analyser.fftSize);
 
           this.volumeInterval = setInterval(() => {
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
+            analyser.getByteTimeDomainData(dataArray);
+            let maxDeviation = 0;
             for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i];
+              const dev = Math.abs(dataArray[i] - 128);
+              if (dev > maxDeviation) maxDeviation = dev;
             }
-            const avg = sum / dataArray.length;
-            const percent = Math.min(100, Math.round((avg / 90) * 100));
+            const percent = Math.min(100, Math.round((maxDeviation / 45) * 100));
             this.micVolume.set(percent);
-            if (percent > 8) {
-              this.detectedSound.set(true);
-            }
           }, 100);
         }
       } catch {
