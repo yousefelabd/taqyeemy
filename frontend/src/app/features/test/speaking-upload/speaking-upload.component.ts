@@ -1,10 +1,12 @@
-import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnChanges, OnDestroy } from '@angular/core';
+import { Component, Input, Output, EventEmitter, inject, ChangeDetectorRef, OnChanges, OnDestroy, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatCardModule } from '@angular/material/card';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../../environments/environment';
 import { SpeakingAnalysisResult } from '../../../core/models/result.model';
 
@@ -15,91 +17,130 @@ import { SpeakingAnalysisResult } from '../../../core/models/result.model';
   template: `
     <div class="upload-section">
       <!-- حالة التسجيل المباشر من المايكروفون -->
-      <div *ngIf="!isSubmitted" class="mic-controls">
-        <button
-          *ngIf="!isRecording"
-          type="button"
-          mat-raised-button
-          color="warn"
-          class="record-btn"
-          [disabled]="isLoading"
-          (click)="startRecording()">
-          <mat-icon>mic</mat-icon>
-          <span>{{ selectedFile ? 'إعادة التسجيل بالمايكروفون' : 'ابدأ التسجيل بالمايكروفون' }}</span>
-        </button>
+      @if (!isSubmitted()) {
+        <div class="mic-controls">
+          @if (!isRecording()) {
+            <button
+              type="button"
+              mat-raised-button
+              color="warn"
+              class="record-btn"
+              [disabled]="isLoading()"
+              (click)="startRecording()">
+              <mat-icon>mic</mat-icon>
+              <span>{{ selectedFile() ? 'إعادة التسجيل بالمايكروفون' : 'ابدأ التسجيل بالمايكروفون' }}</span>
+            </button>
+          }
 
-        <div *ngIf="isRecording" class="recording-active">
-          <div class="recording-badge">
-            <span class="pulse-dot"></span>
-            <span>جاري التسجيل... {{ formatTime(recordingSeconds) }} / 01:30</span>
-          </div>
-          <button
-            type="button"
-            mat-raised-button
-            color="accent"
-            class="stop-btn"
-            (click)="stopRecording()">
-            <mat-icon>stop_circle</mat-icon>
-            <span>إيقاف التسجيل</span>
-          </button>
+          @if (isRecording()) {
+            <div class="recording-active">
+              <div class="recording-badge">
+                <span class="pulse-dot"></span>
+                <span>جاري التسجيل... {{ formatTime(recordingSeconds()) }} / 01:30</span>
+              </div>
+
+              <!-- مؤشر حي لالتقاط الصوت من المايكروفون -->
+              <div class="mic-meter-wrapper">
+                <span class="mic-meter-label">مستوى الصوت الملتقط:</span>
+                <div class="mic-meter-track">
+                  <div class="mic-meter-fill" [style.width.%]="micVolume()"></div>
+                </div>
+              </div>
+
+              @if (recordingSeconds() >= 3 && !detectedSound()) {
+                <p class="silent-warning">
+                  ⚠️ لم يتم التقاط صوت واضح حتى الآن — تأكد من التحدث بالقرب من المايكروفون وأنه غير مكتوم (Mute).
+                </p>
+              }
+
+              <button
+                type="button"
+                mat-raised-button
+                color="accent"
+                class="stop-btn"
+                (click)="stopRecording()">
+                <mat-icon>stop_circle</mat-icon>
+                <span>إيقاف التسجيل</span>
+              </button>
+            </div>
+          }
+
+          <!-- خيار احتياطي لرفع ملف صوتي من الجهاز -->
+          @if (!isRecording()) {
+            <div class="backup-upload">
+              <label for="audioUpload" class="upload-label">
+                <mat-icon>attach_file</mat-icon>
+                أو اختر ملف تسجيل صوتي من جهازك
+              </label>
+              <input
+                id="audioUpload"
+                type="file"
+                accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.aac"
+                (change)="onFileSelected($event)"
+                style="display: none;" />
+            </div>
+          }
         </div>
+      }
 
-        <!-- خيار احتياطي لرفع ملف صوتي من الجهاز -->
-        <div *ngIf="!isRecording" class="backup-upload">
-          <label for="audioUpload" class="upload-label">
-            <mat-icon>attach_file</mat-icon>
-            أو اختر ملف تسجيل صوتي من جهازك
-          </label>
-          <input
-            id="audioUpload"
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.ogg,.webm,.aac"
-            (change)="onFileSelected($event)"
-            style="display: none;" />
-        </div>
-      </div>
-
-      <p *ngIf="errorMessage" class="error-message">⚠️ {{ errorMessage }}</p>
+      @if (errorMessage()) {
+        <p class="error-message">⚠️ {{ errorMessage() }}</p>
+      }
 
       <!-- معاينة الصوت المسجل أو المرفوع قبل الإرسال -->
-      <div *ngIf="selectedFile && !errorMessage && !isSubmitted && !isRecording" class="preview-box">
-        <p class="file-selected">
-          ✅ الجاهز للإرسال: {{ selectedFile.name }}
+      @if (selectedFile() && !errorMessage() && !isSubmitted() && !isRecording()) {
+        <div class="preview-box">
+          <p class="file-selected">
+            ✅ تم تجهيز التسجيل الصوتي ({{ formatFileSize(selectedFile()!.size) }}) — يمكنك سماعه للتأكد:
+          </p>
+          @if (safeAudioPreviewUrl()) {
+            <audio [src]="safeAudioPreviewUrl()" controls preload="auto" class="audio-player"></audio>
+          }
+        </div>
+      }
+
+      @if (isSubmitted()) {
+        <p class="file-success">
+          ✅ تم تأكيد وتسجيل الإجابة الصوتية بنجاح! يمكنك الآن الضغط على «إنهاء الاختبار وعرض النتيجة».
         </p>
-        <audio *ngIf="audioPreviewUrl" [src]="audioPreviewUrl" controls class="audio-player"></audio>
-      </div>
+      }
 
-      <p *ngIf="isSubmitted" class="file-success">
-        ✅ تم تأكيد وتسجيل الإجابة الصوتية بنجاح! يمكنك الآن الضغط على «إنهاء الاختبار وعرض النتيجة».
-      </p>
-
-      <button
-        *ngIf="selectedFile && !errorMessage && !isSubmitted && !isRecording"
-        type="button"
-        mat-raised-button
-        color="primary"
-        [disabled]="isLoading"
-        (click)="confirmRecording()">
-        <mat-spinner *ngIf="isLoading" diameter="20"></mat-spinner>
-        <span *ngIf="!isLoading">تأكيد وإرسال الإجابة الصوتية</span>
-      </button>
+      @if (selectedFile() && !errorMessage() && !isSubmitted() && !isRecording()) {
+        <button
+          type="button"
+          mat-raised-button
+          color="primary"
+          [disabled]="isLoading()"
+          (click)="confirmRecording()">
+          @if (isLoading()) {
+            <mat-spinner diameter="20"></mat-spinner>
+          } @else {
+            <span>تأكيد وإرسال الإجابة الصوتية</span>
+          }
+        </button>
+      }
     </div>
   `,
   styles: [`
     .upload-section { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 24px; border: 2px dashed #ccc; border-radius: 12px; background: #fafafa; margin: 16px 0; text-align: center; }
     .mic-controls { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
     .record-btn { padding: 10px 24px; border-radius: 28px; font-weight: 700; font-size: 15px; display: inline-flex; align-items: center; gap: 8px; }
-    .recording-active { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .recording-active { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 360px; }
     .recording-badge { display: inline-flex; align-items: center; gap: 10px; background: #ffebee; color: #c62828; padding: 8px 18px; border-radius: 24px; font-weight: 700; font-size: 15px; }
     .pulse-dot { width: 12px; height: 12px; background: #d32f2f; border-radius: 50%; animation: pulse 1s infinite ease-in-out; }
     @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.35); opacity: 0.45; } }
+    .mic-meter-wrapper { width: 100%; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+    .mic-meter-label { font-size: 12px; color: #555; font-weight: 600; }
+    .mic-meter-track { width: 100%; height: 10px; background: #e0e0e0; border-radius: 6px; overflow: hidden; }
+    .mic-meter-fill { height: 100%; background: linear-gradient(90deg, #43a047, #1e88e5); transition: width 0.08s ease-out; border-radius: 6px; }
+    .silent-warning { font-size: 12.5px; color: #e65100; background: #fff3e0; padding: 8px 12px; border-radius: 8px; margin: 0; font-weight: 600; }
     .stop-btn { border-radius: 24px; font-weight: 700; }
     .backup-upload { margin-top: 4px; }
     .upload-label { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 13px; }
-    .preview-box { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 380px; }
-    .audio-player { width: 100%; height: 40px; border-radius: 20px; }
+    .preview-box { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; max-width: 400px; background: #fff; padding: 14px; border-radius: 10px; border: 1px solid #e0e0e0; }
+    .audio-player { width: 100%; height: 42px; border-radius: 20px; outline: none; }
     .error-message { color: #c62828; font-weight: 600; margin: 4px 0; }
-    .file-selected { color: #2e7d32; font-weight: 600; margin: 0; }
+    .file-selected { color: #2e7d32; font-weight: 600; margin: 0; font-size: 14px; }
     .file-success { color: #2e7d32; font-weight: 700; font-size: 15px; margin: 8px 0; }
   `],
 })
@@ -110,25 +151,33 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
 
   private http = inject(HttpClient);
   private cdr = inject(ChangeDetectorRef);
+  private sanitizer = inject(DomSanitizer);
 
-  selectedFile: File | null = null;
-  audioPreviewUrl: string | null = null;
-  errorMessage: string | null = null;
-  isLoading = false;
-  isSubmitted = false;
+  selectedFile = signal<File | null>(null);
+  safeAudioPreviewUrl = signal<SafeUrl | null>(null);
+  private rawAudioPreviewUrl: string | null = null;
 
-  isRecording = false;
-  recordingSeconds = 0;
+  errorMessage = signal<string | null>(null);
+  isLoading = signal(false);
+  isSubmitted = signal(false);
+
+  isRecording = signal(false);
+  recordingSeconds = signal(0);
+  micVolume = signal(0);
+  detectedSound = signal(false);
+
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
   private audioChunks: Blob[] = [];
   private recordingTimer: any = null;
+  private audioContext: AudioContext | null = null;
+  private volumeInterval: any = null;
 
   readonly MAX_DURATION_SECONDS = 90;
 
   ngOnChanges(): void {
     if (this.alreadySubmitted) {
-      this.isSubmitted = true;
+      this.isSubmitted.set(true);
     }
   }
 
@@ -143,11 +192,35 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     return `${mins}:${secs}`;
   }
 
+  formatFileSize(bytes: number): string {
+    const kb = Math.max(1, Math.round(bytes / 1024));
+    return `${kb} KB`;
+  }
+
+  private setPreviewBlob(blob: Blob): void {
+    this.revokePreviewUrl();
+    this.rawAudioPreviewUrl = URL.createObjectURL(blob);
+    this.safeAudioPreviewUrl.set(this.sanitizer.bypassSecurityTrustUrl(this.rawAudioPreviewUrl));
+  }
+
   private revokePreviewUrl(): void {
-    if (this.audioPreviewUrl) {
-      URL.revokeObjectURL(this.audioPreviewUrl);
-      this.audioPreviewUrl = null;
+    if (this.rawAudioPreviewUrl) {
+      URL.revokeObjectURL(this.rawAudioPreviewUrl);
+      this.rawAudioPreviewUrl = null;
     }
+    this.safeAudioPreviewUrl.set(null);
+  }
+
+  private stopAudioMeter(): void {
+    if (this.volumeInterval) {
+      clearInterval(this.volumeInterval);
+      this.volumeInterval = null;
+    }
+    if (this.audioContext) {
+      this.audioContext.close().catch(() => {});
+      this.audioContext = null;
+    }
+    this.micVolume.set(0);
   }
 
   private cleanupRecording(): void {
@@ -155,6 +228,7 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
+    this.stopAudioMeter();
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
       try {
         this.mediaRecorder.stop();
@@ -166,79 +240,125 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       this.mediaStream.getTracks().forEach((t) => t.stop());
       this.mediaStream = null;
     }
-    this.isRecording = false;
+    this.isRecording.set(false);
   }
 
   async startRecording(): Promise<void> {
-    if (this.isRecording || this.isLoading) return;
-    this.errorMessage = null;
-    this.selectedFile = null;
-    this.isSubmitted = false;
+    if (this.isRecording() || this.isLoading()) return;
+    this.errorMessage.set(null);
+    this.selectedFile.set(null);
+    this.isSubmitted.set(false);
+    this.detectedSound.set(false);
     this.revokePreviewUrl();
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      this.errorMessage = 'المتصفح الحالي لا يدعم التسجيل المباشر من المايكروفون، يرجى اختيار ملف صوتي من جهازك.';
-      this.cdr.markForCheck();
+      this.errorMessage.set('المتصفح الحالي لا يدعم التسجيل المباشر من المايكروفون، يرجى اختيار ملف صوتي من جهازك.');
       return;
     }
 
     try {
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      this.mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       this.audioChunks = [];
 
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      // إعداد مؤشر مستوى الصوت للتأكد من أن المايكروفون يلتقط الصوت فعلياً
+      try {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+          const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+          const analyser = this.audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          source.connect(analyser);
+          const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+          this.volumeInterval = setInterval(() => {
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+              sum += dataArray[i];
+            }
+            const avg = sum / dataArray.length;
+            const percent = Math.min(100, Math.round((avg / 90) * 100));
+            this.micVolume.set(percent);
+            if (percent > 8) {
+              this.detectedSound.set(true);
+            }
+          }, 100);
+        }
+      } catch {
+        // ignore audio meter errors if browser restricts AudioContext
+      }
+
+      const preferredMime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
           ? 'audio/webm'
           : MediaRecorder.isTypeSupported('audio/mp4')
             ? 'audio/mp4'
-            : '';
+            : MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')
+              ? 'audio/ogg;codecs=opus'
+              : '';
 
-      this.mediaRecorder = mimeType
-        ? new MediaRecorder(this.mediaStream, { mimeType })
+      const recorder = preferredMime
+        ? new MediaRecorder(this.mediaStream, { mimeType: preferredMime })
         : new MediaRecorder(this.mediaStream);
+      this.mediaRecorder = recorder;
 
-      this.mediaRecorder.ondataavailable = (event: BlobEvent) => {
+      recorder.ondataavailable = (event: BlobEvent) => {
         if (event.data && event.data.size > 0) {
           this.audioChunks.push(event.data);
         }
       };
 
-      this.mediaRecorder.onstop = () => {
-        const actualMime = this.mediaRecorder?.mimeType || 'audio/webm';
-        const ext = actualMime.includes('mp4') ? 'm4a' : 'webm';
-        const blob = new Blob(this.audioChunks, { type: actualMime });
+      recorder.onstop = () => {
+        const rawMime = (recorder.mimeType || preferredMime || 'audio/webm').toLowerCase();
+        const cleanMime = rawMime.includes('mp4')
+          ? 'audio/mp4'
+          : rawMime.includes('ogg')
+            ? 'audio/ogg'
+            : 'audio/webm';
+        const ext = cleanMime === 'audio/mp4' ? 'm4a' : cleanMime === 'audio/ogg' ? 'ogg' : 'webm';
+
+        const blob = new Blob(this.audioChunks, { type: cleanMime });
 
         if (blob.size > 0) {
-          this.selectedFile = new File([blob], `speaking-recording.${ext}`, { type: actualMime });
-          this.revokePreviewUrl();
-          this.audioPreviewUrl = URL.createObjectURL(blob);
+          const recordedFile = new File([blob], `speaking-recording.${ext}`, { type: cleanMime });
+          this.selectedFile.set(recordedFile);
+          this.setPreviewBlob(blob);
+        } else {
+          this.errorMessage.set('لم يتم التقاط أي بيانات صوتية، يرجى المحاولة مرة أخرى.');
         }
 
+        this.stopAudioMeter();
         if (this.mediaStream) {
           this.mediaStream.getTracks().forEach((t) => t.stop());
           this.mediaStream = null;
         }
-        this.isRecording = false;
-        this.cdr.markForCheck();
+        this.isRecording.set(false);
+        this.cdr.detectChanges();
       };
 
-      this.mediaRecorder.start();
-      this.isRecording = true;
-      this.recordingSeconds = 0;
-      this.cdr.markForCheck();
+      // تمرير 200ms يضمن تجميع مقاطع الصوت أولاً بأول وعدم ضياع الصوت عند الإيقاف
+      recorder.start(200);
+      this.isRecording.set(true);
+      this.recordingSeconds.set(0);
 
       this.recordingTimer = setInterval(() => {
-        this.recordingSeconds++;
-        if (this.recordingSeconds >= this.MAX_DURATION_SECONDS) {
+        const nextSec = this.recordingSeconds() + 1;
+        this.recordingSeconds.set(nextSec);
+        if (nextSec >= this.MAX_DURATION_SECONDS) {
           this.stopRecording();
         }
-        this.cdr.markForCheck();
       }, 1000);
     } catch {
-      this.errorMessage = 'تعذر الوصول إلى المايكروفون. يرجى السماح بصلاحية المايكروفون في المتصفح أو رفع ملف صوتي.';
+      this.errorMessage.set('تعذر الوصول إلى المايكروفون. يرجى السماح بصلاحية المايكروفون في المتصفح أو رفع ملف صوتي.');
       this.cleanupRecording();
-      this.cdr.markForCheck();
     }
   }
 
@@ -247,12 +367,17 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
       clearInterval(this.recordingTimer);
       this.recordingTimer = null;
     }
+    this.stopAudioMeter();
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+      try {
+        this.mediaRecorder.requestData();
+      } catch {
+        // ignore
+      }
       this.mediaRecorder.stop();
     } else {
       this.cleanupRecording();
     }
-    this.cdr.markForCheck();
   }
 
   async onFileSelected(event: Event) {
@@ -260,27 +385,23 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
     const file = input.files?.[0];
     if (!file) return;
 
-    this.errorMessage = null;
-    this.selectedFile = null;
-    this.isSubmitted = false;
+    this.errorMessage.set(null);
+    this.selectedFile.set(null);
+    this.isSubmitted.set(false);
     this.revokePreviewUrl();
-    this.cdr.markForCheck();
 
     try {
       const duration = await this.getAudioDuration(file);
       if (duration > 0 && duration > this.MAX_DURATION_SECONDS) {
-        this.errorMessage = `مدة التسجيل ${Math.round(duration)} ثانية. يجب أن تكون 90 ثانية كحد أقصى.`;
+        this.errorMessage.set(`مدة التسجيل ${Math.round(duration)} ثانية. يجب أن تكون 90 ثانية كحد أقصى.`);
         input.value = '';
-        this.cdr.markForCheck();
         return;
       }
-      this.selectedFile = file;
-      this.audioPreviewUrl = URL.createObjectURL(file);
+      this.selectedFile.set(file);
+      this.setPreviewBlob(file);
     } catch {
-      this.selectedFile = file;
-      this.audioPreviewUrl = URL.createObjectURL(file);
-    } finally {
-      this.cdr.markForCheck();
+      this.selectedFile.set(file);
+      this.setPreviewBlob(file);
     }
   }
 
@@ -298,30 +419,29 @@ export class SpeakingUploadComponent implements OnChanges, OnDestroy {
   }
 
   async confirmRecording() {
-    if (!this.selectedFile || this.isLoading) return;
-    this.isLoading = true;
-    this.errorMessage = null;
-    this.cdr.markForCheck();
+    const file = this.selectedFile();
+    if (!file || this.isLoading()) return;
+    this.isLoading.set(true);
+    this.errorMessage.set(null);
 
     const formData = new FormData();
-    formData.append('audio', this.selectedFile);
+    formData.append('audio', file);
     formData.append('questionText', this.questionText);
 
     try {
-      const res = await this.http
-        .post<SpeakingAnalysisResult>(`${environment.apiUrl}/tests/speaking/analyze`, formData)
-        .toPromise();
+      const res = await firstValueFrom(
+        this.http.post<SpeakingAnalysisResult>(`${environment.apiUrl}/tests/speaking/analyze`, formData),
+      );
 
       if (res) {
-        this.isSubmitted = true;
+        this.isSubmitted.set(true);
         this.analyzed.emit(res);
       }
     } catch (err: any) {
       const msg = err?.error?.message || 'حدث خطأ أثناء تحليل الملف الصوتي، يرجى المحاولة مرة أخرى.';
-      this.errorMessage = Array.isArray(msg) ? msg[0] : msg;
+      this.errorMessage.set(Array.isArray(msg) ? msg[0] : msg);
     } finally {
-      this.isLoading = false;
-      this.cdr.markForCheck();
+      this.isLoading.set(false);
     }
   }
 }
