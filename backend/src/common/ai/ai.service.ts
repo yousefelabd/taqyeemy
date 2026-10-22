@@ -169,12 +169,17 @@ Return the result strictly as a valid JSON object matching the schema.
 أنت مقيّم لغوي محترف وخبير في تقييم مهارة التحدث باللغة الإنجليزية وفق معايير CEFR. استمع للتسجيل الصوتي المرفق، وقيّم إجابة المستخدم على السؤال التالي:
 "${questionText}"
 
-تنبيه هام ومطلق:
-جميع الملاحظات والنصائح والتقييمات والتوصيات (grammarFeedback, pronunciationFeedback, overallFeedback) يجب أن تكون مكتوبة حتماً باللغة العربية الفصيحة والشائعة وبأسلوب مشجع ومبسط للمستخدم، ما عدا النص المكتوب (transcript) يكون باللغة الإنجليزية كما نطقها المستخدم بالضبط.
+قاعدة صارمة جداً لمنع التأليف (CRITICAL ANTI-HALLUCINATION RULE):
+1. في حقل "transcript"، اكتب **فقط وحصرياً** الكلمات الحقيقية التي نطقها المستخدم فعلياً وسمعتها في الملف الصوتي المرفق حرفياً.
+2. يُمنع منعاً باتاً تأليف أو اختراع أو تخمين أي جملة أو فقرة من عندك كإجابة نموذجية على السؤال!
+3. إذا كان التسجيل الصوتي صامتاً أو فارغاً أو لا يحتوي على كلام واضح ومفهوم، اكتب في حقل "transcript" النص التالي بالضبط: "(لم يتم سماع كلام واضح في التسجيل الصوتي)" واجعل جميع الدرجات (grammarScore, pronunciationScore, fluencyScore, confidenceScore) تساوي 0.
+
+تنبيه هام ومطلق للغة الملاحظات:
+جميع الملاحظات والنصائح والتقييمات والتوصيات (grammarFeedback, pronunciationFeedback, overallFeedback) يجب أن تكون مكتوبة حتماً باللغة العربية الفصيحة والشائعة وبأسلوب مشجع ومبسط للمستخدم، ما عدا النص المنطوق الفعلي (transcript) يكون كما نطقه المستخدم.
 
 أرجع النتيجة بصيغة JSON فقط بدون أي نص إضافي، بالشكل التالي بالضبط:
 {
-  "transcript": "English text of what the student actually said in the audio",
+  "transcript": "Exact words heard in the audio ONLY (never invent or guess text)",
   "grammarScore": رقم من 0 إلى 10,
   "grammarFeedback": "ملاحظات تفصيلية ودقيقة على الأخطاء النحوية باللغة العربية",
   "pronunciationScore": رقم من 0 إلى 10,
