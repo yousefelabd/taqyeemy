@@ -1,68 +1,94 @@
-﻿# تقييمي — Taqyeemy 🎓
+# 🎓 منصة تقييمي (Taqyeemy) — AI-Powered CEFR English Assessment Platform
 
-منصة اختبار مستوى اللغة الإنجليزية بالذكاء الاصطناعي وفق الإطار الأوروبي المرجعي (CEFR).
+منصة ويب عربية متكاملة لتحديد وتقييم مستوى اللغة الإنجليزية وفق **الإطار الأوروبي المرجعي المشترك للغات (CEFR)** من المستوى **A1** حتى **C2**، مدعومة بالذكاء الاصطناعي (**Google Gemini 2.5 Flash**) لتقييم مهارات **القواعد والمفردات (MCQ)**، **الكتابة التعبيرية (Writing)**، و**التحدث الصوتي (Speaking)** مع تقرير تحليلي شامل باللغة العربية.
 
 ---
 
-## 🛠️ التقنيات المستخدمة
+## 🌐 الروابط الحية (Live Demo)
+
+- **الواجهة الأمامية (Frontend — Cloudflare Pages):** [https://taqyeemy11.pages.dev](https://taqyeemy11.pages.dev)
+- **الخادم الخلفي (Backend API — Vercel Serverless):** [https://taqyeemy-backend.vercel.app](https://taqyeemy-backend.vercel.app)
+
+---
+
+## ✨ المميزات الرئيسية (Key Features)
+
+1. **بنك أسئلة ضخم ومتدرج (1,000+ سؤال):**
+   - يغطي جميع مستويات CEFR الستة (`A1`, `A2`, `B1`, `B2`, `C1`, `C2`).
+   - خوارزمية التوقف الذكي (3 أخطاء في المستوى الحالي تنقل الطالب تلقائياً إلى مرحلة الكتابة والتحدث المناسبة لمستواه).
+2. **تقييم شامل لـ 3 مهارات أساسية:**
+   - **القواعد والمفردات (Multiple Choice):** تصحيح فوري محمي على السيرفر بدون كشف الإجابات في المتصفح.
+   - **الكتابة (Writing):** تقييم آلي للبراجراف المكتوب من حيث القواعد، الترابط، وتنوع المفردات.
+   - **التحدث الصوتي (Speaking):** تسجيل مباشر من المايكروفون في المتصفح أو رفع ملف صوتي، مع تفريغ نصي (Transcript) وتقييم من 10 درجات لكل من (القواعد، النطق، الطلاقة، والثقة).
+3. **حفظ الجلسة ومكافحة الغش:**
+   - حفظ تلقائي لتقدم الطالب في الاختبار عند تحديث الصفحة (`Refresh`).
+   - منع النسخ واللصق والقص والقائمة المختصرة داخل شاشة الاختبار.
+4. **الأمان والحماية (Security Checklist 14/14):**
+   - مصادقة كاملة عبر **Supabase Auth** مع تأكيد البريد الإلكتروني برمز تحقق **OTP (6 أرقام)** وتشفير كلمات المرور بـ `bcrypt`.
+   - حماية الصفوف في قاعدة البيانات عبر **Row Level Security (RLS)** و **Parameterized Queries**.
+   - تفعيل **Rate Limiting**، **Security Headers**، **CORS Policy**، **Input ValidationPipe**، **Strong Password Enforcement**، و**Captcha** على نماذج الدخول والتسجيل.
+5. **تهيئة محركات البحث (SEO Ready):**
+   - دعم كامل لـ `sitemap.xml`، `robots.txt`، `manifest.webmanifest`، وبيانات `JSON-LD Schema.org` مع تحديث ديناميكي للعناوين والوصف عبر `SeoService`.
+
+---
+
+## 🛠️ التقنيات المستخدمة (Tech Stack)
 
 | الطبقة | التقنية |
 |---|---|
-| Frontend | Angular 19 + Angular Material (M3) |
-| Backend | NestJS + TypeScript |
-| Auth & DB | Supabase (Auth + PostgreSQL + RLS) |
-| AI | Google Gemini 2.5 Flash |
+| **Frontend** | Angular (Standalone Components, Signals, Zoneless Change Detection), Angular Material, TypeScript, SCSS |
+| **Backend** | NestJS 11, TypeScript, Class-Validator, Multer |
+| **Database & Auth** | Supabase (PostgreSQL + Auth OTP + RLS) |
+| **AI Engine** | Google Generative AI (`gemini-2.5-flash`) + Smart Fallback Evaluator |
+| **Deployment** | Cloudflare Pages (Frontend) + Vercel Serverless (Backend) |
 
 ---
 
-## 📁 هيكل المشروع
+## 🚀 طريقة التشغيل محلياً (Local Setup)
 
-```
-taqyeemy/
-├── frontend/   # Angular 19 — واجهة المستخدم العربية
-└── backend/    # NestJS — API والذكاء الاصطناعي
-```
+### 1. المتطلبات المسبقة
+- **Node.js** (إصدار 20 أو أحدث)
+- حساب مشروع على **Supabase**
+- مفتاح API من **Google AI Studio (Gemini)**
 
----
-
-## 🚀 تشغيل المشروع محلياً
-
-### المتطلبات
-- Node.js v18+
-- Angular CLI v19+
-- حساب Supabase
-- مفتاح Google Gemini API
-
-### 1. إعداد الباك إند
-
+### 2. إعداد الباك إند (`backend/`)
 ```bash
 cd backend
 npm install
 cp .env.example .env
-# عدّل ملف .env بقيم Supabase و Gemini الخاصة بك
+```
+قم بملء المتغيرات داخل ملف `backend/.env`:
+```env
+PORT=3000
+FRONTEND_URL=http://localhost:4200
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+```
+ثم شغّل السيرفر:
+```bash
 npm run start:dev
 ```
 
-### 2. إعداد الفرونت إند
-
+### 3. إعداد الفرونت إند (`frontend/`)
 ```bash
 cd frontend
 npm install
-ng serve --port=4200
+npm start
 ```
-
-### 3. إعداد قاعدة البيانات
-
-شغّل ملف `backend/supabase-schema.sql` في **Supabase SQL Editor**.
+سيعمل الموقع محلياً على الرابط: `http://localhost:4200`.
 
 ---
 
-## ✨ المميزات
+## 📦 البناء للإنتاج (Production Build)
 
-- 🔐 تسجيل دخول وإنشاء حساب عبر Supabase Auth
-- 📝 اختبار تحديد المستوى (A1 → C2) — 18 سؤالاً متدرجاً
-- 🎯 اختبار مستوى محدد (A1 / A2 / B1 / B2 / C1 / C2)
-- 🤖 تقييم ذكي بـ Gemini 2.5 Flash مع نقاط القوة والضعف بالعربية
-- 📊 سجل النتائج والتاريخ
-- 🔒 حماية البيانات بـ Row Level Security (RLS)
-- 🌐 واجهة عربية بالكامل مع دعم RTL
+```bash
+# بناء الباك إند
+npm --prefix backend run build
+
+# بناء الفرونت إند
+npm --prefix frontend run build
+```
+مخرجات الفرونت إند الجاهزة للنشر تكون داخل `frontend/dist/browser`.
