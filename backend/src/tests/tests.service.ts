@@ -1,5 +1,4 @@
 import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
-import { parseBuffer } from 'music-metadata';
 import { SubmitTestDto } from './dto/submit-test.dto';
 import { ResultsService } from '../results/results.service';
 import { AiService } from '../common/ai/ai.service';
