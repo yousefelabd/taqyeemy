@@ -1,4 +1,4 @@
-﻿import { Component, signal, ChangeDetectorRef } from '@angular/core';
+import { Component, signal, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule, AbstractControl } from '@angular/forms';
 import { RouterLink, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -8,12 +8,15 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/services/auth.service';
+import { CaptchaBoxComponent } from '../../../shared/components/captcha-box/captcha-box.component';
 
 function passwordsMatchValidator(group: AbstractControl) {
   const password = group.get('newPassword')?.value;
   const confirm = group.get('confirmPassword')?.value;
   return password === confirm ? null : { passwordsMismatch: true };
 }
+
+const STRONG_PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 @Component({
   selector: 'app-forgot-password',
@@ -27,6 +30,7 @@ function passwordsMatchValidator(group: AbstractControl) {
     MatButtonModule,
     MatIconModule,
     MatProgressSpinnerModule,
+    CaptchaBoxComponent,
   ],
   template: `
     <div class="auth-page">
@@ -58,6 +62,8 @@ function passwordsMatchValidator(group: AbstractControl) {
                 }
               </mat-form-field>
 
+              <app-captcha-box (verifiedChange)="captchaVerified.set($event)" />
+
               @if (errorMessage()) {
                 <div class="error-banner">
                   <mat-icon>error</mat-icon>
@@ -70,7 +76,7 @@ function passwordsMatchValidator(group: AbstractControl) {
                 color="primary"
                 type="submit"
                 class="submit-btn"
-                [disabled]="requestForm.invalid || isLoading()">
+                [disabled]="requestForm.invalid || !captchaVerified() || isLoading()">
                 @if (isLoading()) {
                   <mat-spinner diameter="20" />
                 } @else {
@@ -86,18 +92,19 @@ function passwordsMatchValidator(group: AbstractControl) {
                 <input matInput type="text" formControlName="token" maxlength="6" placeholder="123456" />
                 <mat-icon matSuffix>key</mat-icon>
                 @if (resetForm.get('token')?.invalid && resetForm.get('token')?.touched) {
-                  <mat-error>رمز التحقق يجب أن بيتكون من 6 أرقام</mat-error>
+                  <mat-error>رمز التحقق يجب أن يتكون من 6 أرقام</mat-error>
                 }
               </mat-form-field>
 
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>كلمة المرور الجديدة</mat-label>
                 <input matInput [type]="showPassword ? 'text' : 'password'" formControlName="newPassword" />
-                <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword">
+                <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword" aria-label="إظهار أو إخفاء كلمة المرور">
                   <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
                 </button>
+                <mat-hint>8 أحرف على الأقل وتحتوي على حروف وأرقام</mat-hint>
                 @if (resetForm.get('newPassword')?.invalid && resetForm.get('newPassword')?.touched) {
-                  <mat-error>كلمة المرور يجب أن تكون 8 أحرف على الأقل</mat-error>
+                  <mat-error>كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حروف وأرقام</mat-error>
                 }
               </mat-form-field>
 
@@ -170,6 +177,7 @@ export class ForgotPasswordComponent {
   errorMessage = signal('');
   successMessage = signal('');
   targetEmail = signal('');
+  captchaVerified = signal(false);
 
   requestForm: FormGroup;
   resetForm: FormGroup;
@@ -187,7 +195,7 @@ export class ForgotPasswordComponent {
     this.resetForm = this.fb.group(
       {
         token: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(6)]],
-        newPassword: ['', [Validators.required, Validators.minLength(8)]],
+        newPassword: ['', [Validators.required, Validators.minLength(8), Validators.pattern(STRONG_PASSWORD_REGEX)]],
         confirmPassword: ['', Validators.required],
       },
       { validators: passwordsMatchValidator }
@@ -209,7 +217,7 @@ export class ForgotPasswordComponent {
   }
 
   async onRequestOtp(): Promise<void> {
-    if (this.requestForm.invalid || this.isLoading()) return;
+    if (this.requestForm.invalid || !this.captchaVerified() || this.isLoading()) return;
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.cdr.markForCheck();

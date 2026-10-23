@@ -8,11 +8,22 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/services/auth.service';
+import { CaptchaBoxComponent } from '../../../shared/components/captcha-box/captcha-box.component';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [ReactiveFormsModule, RouterLink, MatCardModule, MatFormFieldModule, MatInputModule, MatButtonModule, MatIconModule, MatProgressSpinnerModule],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    MatCardModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressSpinnerModule,
+    CaptchaBoxComponent,
+  ],
   template: `
     <div class="auth-page">
       <mat-card class="auth-card">
@@ -38,7 +49,7 @@ import { AuthService } from '../../../core/services/auth.service';
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>كلمة المرور</mat-label>
               <input matInput [type]="showPassword ? 'text' : 'password'" formControlName="password" />
-              <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword">
+              <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword" aria-label="إظهار أو إخفاء كلمة المرور">
                 <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
               </button>
               @if (loginForm.get('password')?.invalid && loginForm.get('password')?.touched) {
@@ -49,6 +60,8 @@ import { AuthService } from '../../../core/services/auth.service';
             <div class="forgot-password-row">
               <a routerLink="/auth/forgot-password" class="forgot-link">نسيت كلمة المرور؟</a>
             </div>
+
+            <app-captcha-box (verifiedChange)="captchaVerified.set($event)" />
 
             @if (errorMessage()) {
               <div class="error-banner">
@@ -62,7 +75,7 @@ import { AuthService } from '../../../core/services/auth.service';
               color="primary"
               type="submit"
               class="submit-btn"
-              [disabled]="loginForm.invalid || isLoading()">
+              [disabled]="loginForm.invalid || !captchaVerified() || isLoading()">
               @if (isLoading()) {
                 <mat-spinner diameter="20" />
               } @else {
@@ -103,6 +116,7 @@ export class LoginComponent {
   showPassword = false;
   isLoading = signal(false);
   errorMessage = signal('');
+  captchaVerified = signal(false);
 
   constructor(
     private fb: FormBuilder,
@@ -114,7 +128,6 @@ export class LoginComponent {
       password: ['', Validators.required],
     });
 
-    // Clear error message immediately when user starts typing again
     this.loginForm.valueChanges.subscribe(() => {
       if (this.errorMessage()) {
         this.errorMessage.set('');
@@ -124,7 +137,7 @@ export class LoginComponent {
   }
 
   async onSubmit(): Promise<void> {
-    if (this.loginForm.invalid || this.isLoading()) return;
+    if (this.loginForm.invalid || !this.captchaVerified() || this.isLoading()) return;
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.cdr.markForCheck();

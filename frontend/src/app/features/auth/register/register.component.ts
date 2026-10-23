@@ -9,12 +9,15 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../../core/services/auth.service';
 import { OtpVerificationComponent } from '../otp-verification/otp-verification.component';
+import { CaptchaBoxComponent } from '../../../shared/components/captcha-box/captcha-box.component';
 
 function passwordsMatchValidator(group: AbstractControl) {
   const password = group.get('password')?.value;
   const confirm = group.get('confirmPassword')?.value;
   return password === confirm ? null : { passwordsMismatch: true };
 }
+
+const STRONG_PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
 @Component({
   selector: 'app-register',
@@ -29,6 +32,7 @@ function passwordsMatchValidator(group: AbstractControl) {
     MatIconModule,
     MatProgressSpinnerModule,
     OtpVerificationComponent,
+    CaptchaBoxComponent,
   ],
   template: `
     @if (requiresOtp()) {
@@ -70,11 +74,12 @@ function passwordsMatchValidator(group: AbstractControl) {
               <mat-form-field appearance="outline" class="full-width">
                 <mat-label>كلمة المرور</mat-label>
                 <input matInput [type]="showPassword ? 'text' : 'password'" formControlName="password" />
-                <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword">
+                <button mat-icon-button matSuffix type="button" (click)="showPassword = !showPassword" aria-label="إظهار أو إخفاء كلمة المرور">
                   <mat-icon>{{ showPassword ? 'visibility_off' : 'visibility' }}</mat-icon>
                 </button>
+                <mat-hint>8 أحرف على الأقل وتحتوي على حروف وأرقام</mat-hint>
                 @if (registerForm.get('password')?.invalid && registerForm.get('password')?.touched) {
-                  <mat-error>كلمة المرور يجب أن تكون 8 أحرف على الأقل</mat-error>
+                  <mat-error>كلمة المرور يجب أن تكون 8 أحرف على الأقل وتحتوي على حروف وأرقام</mat-error>
                 }
               </mat-form-field>
 
@@ -86,6 +91,8 @@ function passwordsMatchValidator(group: AbstractControl) {
                   <mat-error>كلمتا المرور غير متطابقتين</mat-error>
                 }
               </mat-form-field>
+
+              <app-captcha-box (verifiedChange)="captchaVerified.set($event)" />
 
               @if (errorMessage()) {
                 <div class="error-banner">
@@ -99,7 +106,7 @@ function passwordsMatchValidator(group: AbstractControl) {
                 color="primary"
                 type="submit"
                 class="submit-btn"
-                [disabled]="registerForm.invalid || isLoading()">
+                [disabled]="registerForm.invalid || !captchaVerified() || isLoading()">
                 @if (isLoading()) {
                   <mat-spinner diameter="20" />
                 } @else {
@@ -139,6 +146,7 @@ export class RegisterComponent {
   errorMessage = signal('');
   requiresOtp = signal(false);
   userEmail = signal('');
+  captchaVerified = signal(false);
 
   constructor(
     private fb: FormBuilder,
@@ -149,7 +157,7 @@ export class RegisterComponent {
       {
         fullName: ['', [Validators.required, Validators.minLength(3)]],
         email: ['', [Validators.required, Validators.email]],
-        password: ['', [Validators.required, Validators.minLength(8)]],
+        password: ['', [Validators.required, Validators.minLength(8), Validators.pattern(STRONG_PASSWORD_REGEX)]],
         confirmPassword: ['', Validators.required],
       },
       { validators: passwordsMatchValidator }
@@ -164,7 +172,7 @@ export class RegisterComponent {
   }
 
   async onSubmit(): Promise<void> {
-    if (this.registerForm.invalid || this.isLoading()) return;
+    if (this.registerForm.invalid || !this.captchaVerified() || this.isLoading()) return;
     this.isLoading.set(true);
     this.errorMessage.set('');
     this.cdr.markForCheck();

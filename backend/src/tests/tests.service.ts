@@ -25,11 +25,24 @@ function shuffleArray<T>(items: T[]): T[] {
   return copy;
 }
 
+const QUESTION_BY_ID = new Map<string, QuestionBankItem>(
+  QUESTION_BANK.map((q) => [q.id, q]),
+);
+
+const MCQ_BY_LEVEL: Record<CefrLevel, QuestionBankItem[]> = {
+  A1: MCQ_1000_BANK.filter((q) => q.targetLevel === 'A1'),
+  A2: MCQ_1000_BANK.filter((q) => q.targetLevel === 'A2'),
+  B1: MCQ_1000_BANK.filter((q) => q.targetLevel === 'B1'),
+  B2: MCQ_1000_BANK.filter((q) => q.targetLevel === 'B2'),
+  C1: MCQ_1000_BANK.filter((q) => q.targetLevel === 'C1'),
+  C2: MCQ_1000_BANK.filter((q) => q.targetLevel === 'C2'),
+};
+
 function selectPlacementQuestions(): QuestionBankItem[] {
   const levels: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
   const mcqs: QuestionBankItem[] = [];
   for (const lvl of levels) {
-    const levelPool = MCQ_1000_BANK.filter((q) => q.targetLevel === lvl);
+    const levelPool = MCQ_BY_LEVEL[lvl] || [];
     const randomTen = shuffleArray(levelPool).slice(0, 10);
     mcqs.push(...randomTen);
   }
@@ -38,7 +51,7 @@ function selectPlacementQuestions(): QuestionBankItem[] {
 }
 
 function selectLevelQuestions(level: CefrLevel): QuestionBankItem[] {
-  const levelPool = MCQ_1000_BANK.filter((q) => q.targetLevel === level);
+  const levelPool = MCQ_BY_LEVEL[level] || [];
   const randomTen = shuffleArray(levelPool).slice(0, 10);
   const writing = WRITING_QUESTION_BANK.filter((q) => q.targetLevel === level).slice(0, 1);
   return [...randomTen, ...writing];
@@ -65,7 +78,7 @@ export class TestsService {
 
   async getQuestions(testType: string, level?: CefrLevel, userId: string = 'user', token?: string) {
     let historyCount = 0;
-    if (token) {
+    if (testType === 'specific' && level && token) {
       try {
         const history = await this.resultsService.getHistory(userId, token);
         historyCount = history.length;
@@ -98,19 +111,11 @@ export class TestsService {
     const targetLevel = dto.targetLevel as CefrLevel | undefined;
     const testType = dto.testType as TestType;
 
-    let historyCount = 0;
-    if (token) {
-      try {
-        const history = await this.resultsService.getHistory(userId, token);
-        historyCount = history.length;
-      } catch {
-        historyCount = 0;
-      }
-    }
-
-    // استرجاع الأسئلة الفعلية التي أجاب عليها الطالب من بنك الـ 1000 سؤال عبر الـ ID
+    // استرجاع الأسئلة الفعلية التي أجاب عليها الطالب من بنك الـ 1000 سؤال عبر الـ ID بسرعة O(1)
     const answeredKeys = Object.keys(dto.answers || {});
-    const matchedQuestions = QUESTION_BANK.filter((q) => answeredKeys.includes(q.id));
+    const matchedQuestions = answeredKeys
+      .map((id) => QUESTION_BY_ID.get(id))
+      .filter((q): q is QuestionBankItem => !!q);
 
     const questions = matchedQuestions.length > 0
       ? matchedQuestions
@@ -124,7 +129,7 @@ export class TestsService {
     );
 
     const speakingQ = SPEAKING_QUESTION_BANK.find((q) => q.id === speakingAnswer)
-      ?? selectSpeakingQuestion(targetLevel, historyCount);
+      ?? selectSpeakingQuestion(targetLevel, 0);
     const finalQuestions = [...questions, speakingQ];
 
     // البحث عن نتيجة التحليل الصوتي في إجابات الأسئلة

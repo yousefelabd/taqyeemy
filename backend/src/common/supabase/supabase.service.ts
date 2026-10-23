@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
@@ -12,8 +12,16 @@ export class SupabaseService {
     const anonKey = this.configService.get<string>('SUPABASE_ANON_KEY')!;
     const serviceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY')!;
 
-    this.anonClient = createClient(url, anonKey);
-    this.adminClient = createClient(url, serviceKey);
+    const serverAuthOpts = {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    };
+
+    this.anonClient = createClient(url, anonKey, serverAuthOpts);
+    this.adminClient = createClient(url, serviceKey, serverAuthOpts);
   }
 
   // Used for public Auth operations (signup, login)
@@ -32,6 +40,11 @@ export class SupabaseService {
     const anonKey = this.configService.get<string>('SUPABASE_ANON_KEY')!;
 
     return createClient(url, anonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
       global: {
         headers: {
           Authorization: `Bearer ${userJwt}`,

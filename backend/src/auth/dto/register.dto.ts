@@ -1,4 +1,4 @@
-﻿import { IsEmail, IsNotEmpty, MinLength } from 'class-validator';
+import { IsEmail, IsNotEmpty, MinLength, Matches } from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'الاسم مطلوب' })
@@ -10,5 +10,8 @@ export class RegisterDto {
 
   @IsNotEmpty({ message: 'كلمة المرور مطلوبة' })
   @MinLength(8, { message: 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' })
+  @Matches(/^(?=.*[A-Za-z])(?=.*\d).{8,}$/, {
+    message: 'كلمة المرور يجب أن تكون قوية (8 أحرف على الأقل وتحتوي على حروف وأرقام)',
+  })
   password: string;
 }
