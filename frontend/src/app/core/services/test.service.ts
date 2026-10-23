@@ -8,6 +8,7 @@ import { environment } from '../../../environments/environment';
 const API_URL = `${environment.apiUrl}/tests`;
 const SESSION_STORAGE_KEY = 'taqyeemy_active_session';
 const PROGRESS_STORAGE_KEY = 'taqyeemy_test_progress';
+const MCQ_RESULTS_STORAGE_KEY = 'taqyeemy_mcq_results';
 
 export interface SavedTestProgress {
   phase: 'mcq' | 'writing' | 'speaking';
@@ -41,6 +42,7 @@ export class TestService {
       if (!session || session.status !== 'in-progress') {
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
         sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
+        sessionStorage.removeItem(MCQ_RESULTS_STORAGE_KEY);
       } else {
         sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
       }
@@ -86,6 +88,7 @@ export class TestService {
     };
 
     sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
+    sessionStorage.removeItem(MCQ_RESULTS_STORAGE_KEY);
     this._session.set(session);
     this.saveSessionToStorage(session);
     return session;
@@ -98,6 +101,32 @@ export class TestService {
       this.saveSessionToStorage(updated);
       return updated;
     });
+  }
+
+  // نتائج تصحيح أسئلة الاختيار (true = إجابة خاطئة) محفوظة محلياً لحساب الـ 3 أخطاء حتى بعد عمل Refresh
+  loadMcqWrongFlags(): Record<string, boolean> {
+    try {
+      const raw = sessionStorage.getItem(MCQ_RESULTS_STORAGE_KEY);
+      return raw ? (JSON.parse(raw) as Record<string, boolean>) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  saveMcqWrongFlags(flags: Record<string, boolean>): void {
+    try {
+      sessionStorage.setItem(MCQ_RESULTS_STORAGE_KEY, JSON.stringify(flags));
+    } catch {
+      // ignore
+    }
+  }
+
+  // السيرفر هو اللي بيحدد صح/غلط، المتصفح مش بيعرف الإجابة الصحيحة أبداً
+  async checkAnswer(questionId: string, answer: string): Promise<boolean> {
+    const res = await firstValueFrom(
+      this.http.post<{ correct: boolean }>(`${API_URL}/check-answer`, { questionId, answer }),
+    );
+    return !!res?.correct;
   }
 
   async submitAndEvaluate(): Promise<TestResult> {

@@ -97,13 +97,17 @@ export class TestsService {
 
     const finalQuestions = [...questions, ...speakingQuestions];
 
-    // إخفاء الإجابة الصحيحة الصريحة وإرسال مفتاح مشفر بسيط (checkKey) لحساب الـ 3 أخطاء في الفرونت إند لحظياً بدون إظهار الإجابة
-    return finalQuestions.map(({ correctAnswer, ...rest }: any) => ({
-      ...rest,
-      ...(correctAnswer
-        ? { checkKey: Buffer.from(`${rest.id}:${correctAnswer}`).toString('base64') }
-        : {}),
-    }));
+    // لا نرسل الإجابة الصحيحة ولا أي مفتاح مشتق منها للمتصفح؛ التحقق يتم عبر checkAnswer على السيرفر
+    return finalQuestions.map(({ correctAnswer, ...rest }: any) => rest);
+  }
+
+  // التحقق من إجابة سؤال اختيار واحد: يرجع صح/غلط فقط بدون كشف الإجابة الصحيحة
+  checkAnswer(questionId: string, answer: string): { correct: boolean } {
+    const question = QUESTION_BY_ID.get(questionId);
+    if (!question || question.type !== 'multiple-choice') {
+      throw new BadRequestException('السؤال غير صالح');
+    }
+    return { correct: question.correctAnswer === answer };
   }
 
   // التحليل الصوتي بقى بيحصل هنا بس، مرة واحدة، وقت إنهاء الاختبار

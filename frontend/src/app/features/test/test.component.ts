@@ -132,12 +132,19 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
                   }
                 </button>
               } @else {
-                <button mat-raised-button color="primary" [disabled]="!currentAnswer() || isSubmitting" (click)="nextQuestion()">
-                  التالي
-                  <mat-icon>arrow_back</mat-icon>
+                <button mat-raised-button color="primary" [disabled]="!currentAnswer() || isSubmitting || isChecking()" (click)="nextQuestion()">
+                  @if (isChecking()) {
+                    <mat-spinner diameter="20" />
+                  } @else {
+                    التالي
+                    <mat-icon>arrow_back</mat-icon>
+                  }
                 </button>
               }
             </mat-card-actions>
+            @if (checkError()) {
+              <p class="check-error">⚠️ {{ checkError() }}</p>
+            }
           </mat-card>
         }
       </div>
@@ -170,6 +177,7 @@ import { SpeakingAnalysisResult } from '../../core/models/result.model';
     .radio-icon { color: var(--mat-sys-primary); }
     .full-width { width: 100%; margin-top: 8px; }
     .card-actions { display: flex; justify-content: space-between; padding: 8px 16px 16px; }
+    .check-error { color: #c62828; font-weight: 600; text-align: center; margin: 0 16px 16px; font-size: 14px; }
     .no-session { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; gap: 16px; text-align: center; }
     .no-session mat-icon { font-size: 64px; width: 64px; height: 64px; color: var(--mat-sys-on-surface-variant); }
   `]
@@ -185,6 +193,11 @@ export class TestComponent implements OnInit {
   phase = signal<'mcq' | 'writing' | 'speaking'>('mcq');
   mcqIndex = signal(0);
   stoppedLevel = signal<string>('A1');
+
+  // true = السيرفر قال إن إجابة السؤال دي غلط (بنحسب منها الـ 3 أخطاء في المستوى)
+  mcqWrong = signal<Record<string, boolean>>({});
+  isChecking = signal(false);
+  checkError = signal('');
 
   openTextAnswer = '';
   isSubmitting = false;
@@ -249,6 +262,9 @@ export class TestComponent implements OnInit {
       return;
     }
 
+    // استرجاع نتائج تصحيح الأسئلة السابقة (عدد الأخطاء) في حال عمل Refresh
+    this.mcqWrong.set(this.testService.loadMcqWrongFlags());
+
     // استرجاع خطوة الطالب الحالية في حال عمل Refresh للصفحة
     const savedProgress = this.testService.loadProgress();
     if (savedProgress) {
@@ -283,30 +299,44 @@ export class TestComponent implements OnInit {
     this.selectAnswer(jsonString);
   }
 
-  private isMcqWrong(q: Question, selectedOptionId?: string): boolean {
-    if (!q.checkKey || !selectedOptionId) return false;
-    try {
-      const encoded = btoa(`${q.id}:${selectedOptionId}`);
-      return encoded !== q.checkKey;
-    } catch {
-      return false;
-    }
+  // يسأل السيرفر عن صحة إجابة السؤال الحالي (لو مش متسجلة قبل كده) ويحفظ النتيجة محلياً
+  private async ensureMcqChecked(q: Question, answer: string | undefined): Promise<void> {
+    if (!answer || this.mcqWrong()[q.id] !== undefined) return;
+    const correct = await this.testService.checkAnswer(q.id, answer);
+    const updated = { ...this.mcqWrong(), [q.id]: !correct };
+    this.mcqWrong.set(updated);
+    this.testService.saveMcqWrongFlags(updated);
   }
 
-  nextQuestion(): void {
+  async nextQuestion(): Promise<void> {
     const currentPhase = this.phase();
 
     if (currentPhase === 'mcq') {
+      if (this.isChecking()) return;
       const mcqs = this.mcqQuestions();
       const idx = this.mcqIndex();
       const currentQ = mcqs[idx];
       const currentLvl = currentQ?.targetLevel || 'A1';
       const answers = this.session()?.answers ?? {};
 
+      this.checkError.set('');
+      this.isChecking.set(true);
+      try {
+        if (currentQ) {
+          await this.ensureMcqChecked(currentQ, answers[currentQ.id]);
+        }
+      } catch {
+        this.checkError.set('تعذر التحقق من الإجابة، تأكد من اتصالك بالإنترنت وحاول مرة أخرى.');
+        return;
+      } finally {
+        this.isChecking.set(false);
+      }
+
       // حساب عدد الأخطاء في المستوى الحالي حتى السؤال الحالي
+      const wrongFlags = this.mcqWrong();
       const mistakesInCurrentLevel = mcqs
         .slice(0, idx + 1)
-        .filter((q) => q.targetLevel === currentLvl && this.isMcqWrong(q, answers[q.id]))
+        .filter((q) => q.targetLevel === currentLvl && wrongFlags[q.id] === true)
         .length;
 
       // إذا وصل لـ 3 أخطاء في المستوى الحالي أو أنهى آخر سؤال اختياري -> ينتقل فوراً لسؤال البراجراف
